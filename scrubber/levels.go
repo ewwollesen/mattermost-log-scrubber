@@ -18,20 +18,20 @@ func (s *Scrubber) scrubEmailByLevel(email string) string {
 	case 1:
 		// Keep last 3 characters of local part
 		if len(localPart) <= 3 {
-			return strings.Repeat("x", len(localPart)) + "@" + domain
+			return strings.Repeat("*", len(localPart)) + "@" + domain
 		}
-		masked := strings.Repeat("x", len(localPart)-3) + localPart[len(localPart)-3:]
+		masked := strings.Repeat("*", len(localPart)-3) + localPart[len(localPart)-3:]
 		return masked + "@" + domain
 
 	case 2:
 		// Mask entire local part
-		masked := strings.Repeat("x", len(localPart))
+		masked := strings.Repeat("*", len(localPart))
 		return masked + "@" + domain
 
 	case 3:
 		// Mask everything including domain
-		localMasked := strings.Repeat("x", len(localPart))
-		domainMasked := strings.Repeat("x", len(domain))
+		localMasked := strings.Repeat("*", len(localPart))
+		domainMasked := strings.Repeat("*", len(domain))
 		return localMasked + "@" + domainMasked
 
 	default:
@@ -45,13 +45,13 @@ func (s *Scrubber) scrubUsernameByLevel(username string) string {
 	case 1:
 		// Keep last 3 characters
 		if len(username) <= 3 {
-			return strings.Repeat("x", len(username))
+			return strings.Repeat("*", len(username))
 		}
-		return strings.Repeat("x", len(username)-3) + username[len(username)-3:]
+		return strings.Repeat("*", len(username)-3) + username[len(username)-3:]
 
 	case 2, 3:
 		// Mask entire username
-		return strings.Repeat("x", len(username))
+		return strings.Repeat("*", len(username))
 
 	default:
 		return username
@@ -68,11 +68,11 @@ func (s *Scrubber) scrubIPByLevel(ip string) string {
 	switch s.level {
 	case 1:
 		// Keep last octet only
-		return "xxx.xxx.xxx." + parts[3]
+		return "***.***.***." + parts[3]
 
 	case 2, 3:
 		// Mask entire IP
-		return "xxx.xxx.xxx.xxx"
+		return "***.***.***.***"
 
 	default:
 		return ip
@@ -87,7 +87,7 @@ func (s *Scrubber) scrubUIDByLevel(uid string) string {
 
 	// For level 3: mask all but last 4 digits, keep total length at 26
 	if len(uid) < 4 {
-		return strings.Repeat("x", len(uid))
+		return strings.Repeat("*", len(uid))
 	}
 
 	last4 := uid[len(uid)-4:]
@@ -98,6 +98,6 @@ func (s *Scrubber) scrubUIDByLevel(uid string) string {
 		maskedLength = len(uid) - 4
 	}
 	
-	masked := strings.Repeat("x", maskedLength)
+	masked := strings.Repeat("*", maskedLength)
 	return masked + last4
 }

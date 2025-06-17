@@ -36,22 +36,22 @@ go build -o mattermost-scrubber
 ## Scrubbing Levels
 
 ### Level 1 (Low) - Partial Masking
-- **Emails**: `claude@domain.com` → `xxxude@domain.com` (keep last 3 chars of local part)
-- **Usernames**: `claude` → `xxxude` (keep last 3 chars)
-- **IP Addresses**: `192.168.1.154` → `xxx.xxx.xxx.154` (keep last octet)
+- **Emails**: `claude@domain.com` → `***ude@domain.com` (keep last 3 chars of local part)
+- **Usernames**: `claude` → `***ude` (keep last 3 chars)
+- **IP Addresses**: `192.168.1.154` → `***.***.***.154` (keep last octet)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 2 (Medium) - Local Part Masking
-- **Emails**: `claude@domain.com` → `xxxxx@domain.com` (mask entire local part)
-- **Usernames**: `claude` → `xxxxx` (mask entire username)
-- **IP Addresses**: `192.168.1.154` → `xxx.xxx.xxx.xxx` (mask entire IP)
+- **Emails**: `claude@domain.com` → `*****@domain.com` (mask entire local part)
+- **Usernames**: `claude` → `*****` (mask entire username)
+- **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 3 (High) - Full Masking
-- **Emails**: `claude@domain.com` → `xxxxxx@xxxxxxxxxx` (mask everything)
-- **Usernames**: `claude` → `xxxxx` (mask entirely)
-- **IP Addresses**: `192.168.1.154` → `xxx.xxx.xxx.xxx` (mask entirely)
-- **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `xxxxxxxxxxxxxxxxxxxxxx1234` (mask all but last 4, maintain 26 char length)
+- **Emails**: `claude@domain.com` → `******@**********` (mask everything)
+- **Usernames**: `claude` → `*****` (mask entirely)
+- **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entirely)
+- **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `**********************1234` (mask all but last 4, maintain 26 char length)
 
 ## Examples
 
@@ -78,7 +78,7 @@ go build -o mattermost-scrubber
 ## Sample Output (Level 1)
 
 ```json
-{"channel":"general","email":"xxxude@example.com","ip":"xxx.xxx.xxx.154","level":"info","msg":"User login successful","team":"engineering","team_id":"zyxwvu987654321098765432109876","time":"2024-01-15T10:30:45.123Z","user":"xxxude","user_id":"abcdef123456789012345678901234"}
+{"channel":"general","email":"***ude@example.com","ip":"***.***.***.154","level":"info","msg":"User login successful","team":"engineering","team_id":"zyxwvu987654321098765432109876","time":"2024-01-15T10:30:45.123Z","user":"***ude","user_id":"abcdef123456789012345678901234"}
 ```
 
 ## Supported Data Types
