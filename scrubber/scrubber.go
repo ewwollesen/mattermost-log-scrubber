@@ -18,7 +18,6 @@ type UserMapping struct {
 type Scrubber struct {
 	level       int
 	verbose     bool
-	useMapping  bool
 	emailMap    map[string]string
 	userMap     map[string]string
 	ipMap       map[string]string
@@ -27,11 +26,10 @@ type Scrubber struct {
 	userCounter  int
 }
 
-func NewScrubber(level int, verbose bool, useMapping bool) *Scrubber {
+func NewScrubber(level int, verbose bool) *Scrubber {
 	return &Scrubber{
 		level:        level,
 		verbose:      verbose,
-		useMapping:   useMapping,
 		emailMap:     make(map[string]string),
 		userMap:      make(map[string]string),
 		ipMap:        make(map[string]string),
@@ -111,9 +109,8 @@ func (s *Scrubber) processLogLine(line string) (string, error) {
 	}
 
 	// If using mapping mode, detect and create user mappings first
-	if s.useMapping {
-		s.detectAndMapUser(rawData)
-	}
+	// Always detect and create user mappings
+	s.detectAndMapUser(rawData)
 
 	// Convert to JSON, scrub, and convert back
 	jsonBytes, err := json.Marshal(rawData)
@@ -184,12 +181,8 @@ func (s *Scrubber) scrubEmails(text string) string {
 			return scrubbed
 		}
 
-		var scrubbed string
-		if s.useMapping {
-			scrubbed = s.getUserMappedEmail(email)
-		} else {
-			scrubbed = s.scrubEmailByLevel(email)
-		}
+		// Always use user mapping for emails
+		scrubbed := s.getUserMappedEmail(email)
 		
 		s.emailMap[email] = scrubbed
 		return scrubbed
@@ -230,12 +223,8 @@ func (s *Scrubber) scrubUsernames(text string) string {
 			return key + scrubbed + `"`
 		}
 
-		var scrubbed string
-		if s.useMapping {
-			scrubbed = s.getUserMappedName(username)
-		} else {
-			scrubbed = s.scrubUsernameByLevel(username)
-		}
+		// Always use user mapping for usernames
+		scrubbed := s.getUserMappedName(username)
 		
 		s.userMap[username] = scrubbed
 		return key + scrubbed + `"`

@@ -20,7 +20,6 @@ func main() {
 	var dryRun = flag.Bool("dry-run", false, "Preview changes without writing output")
 	var verbose = flag.Bool("v", false, "Verbose output")
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
-	var useMapping = flag.Bool("use-mapping", false, "Use user mapping instead of masking (user1@domain.com instead of ***@domain.com)")
 
 	flag.Parse()
 
@@ -72,12 +71,11 @@ func main() {
 		fmt.Printf("Input file: %s\n", inputPath)
 		fmt.Printf("Output file: %s\n", outputPath)
 		fmt.Printf("Scrubbing level: %d\n", scrubbingLevel)
-		fmt.Printf("Use mapping: %t\n", *useMapping)
 		fmt.Printf("Dry run: %t\n", *dryRun)
 	}
 
 	// Initialize scrubber
-	s := scrubber.NewScrubber(scrubbingLevel, isVerbose, *useMapping)
+	s := scrubber.NewScrubber(scrubbingLevel, isVerbose)
 
 	// Process the file
 	err := s.ProcessFile(inputPath, outputPath, *dryRun)
