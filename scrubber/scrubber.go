@@ -101,7 +101,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 
 // processLogLine processes a single log line and returns the scrubbed version
 func (s *Scrubber) processLogLine(line string) (string, error) {
-	// Try to parse as JSON
+	// Try to parse as JSON to validate and extract user mapping data
 	var rawData map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &rawData); err != nil {
 		// If not valid JSON, treat as plain text and scrub
@@ -112,13 +112,8 @@ func (s *Scrubber) processLogLine(line string) (string, error) {
 	// Always detect and create user mappings
 	s.detectAndMapUser(rawData)
 
-	// Convert to JSON, scrub, and convert back
-	jsonBytes, err := json.Marshal(rawData)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal JSON: %w", err)
-	}
-
-	scrubbedJSON := s.scrubJSONString(string(jsonBytes))
+	// Work directly with the JSON string to preserve field order
+	scrubbedJSON := s.scrubJSONString(line)
 	
 	// Validate that the result is still valid JSON
 	var temp interface{}
@@ -205,7 +200,7 @@ func (s *Scrubber) scrubIPAddresses(text string) string {
 }
 
 // Username patterns - look for quoted usernames in JSON and word boundaries in plain text
-var usernameRegex = regexp.MustCompile(`"(?:user|username|name)"\s*:\s*"([^"]+)"`)
+var usernameRegex = regexp.MustCompile(`"(?:user|username)"\s*:\s*"([^"]+)"`)
 
 func (s *Scrubber) scrubUsernames(text string) string {
 	// Scrub usernames in JSON format
@@ -254,33 +249,49 @@ func (s *Scrubber) scrubUIDs(text string) string {
 
 // detectAndMapUser detects username and email pairs in JSON data and creates user mappings
 func (s *Scrubber) detectAndMapUser(data map[string]interface{}) {
-	var username, email string
-	
-	// Look for username fields
-	if userVal, exists := data["user"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
+	s.findUserMappingsRecursive(data)
+}
+
+// findUserMappingsRecursive recursively searches through JSON data to find username/email pairs
+func (s *Scrubber) findUserMappingsRecursive(data interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this object has both username and email fields
+		var username, email string
+		
+		// Look for username fields in this object
+		if userVal, exists := v["user"]; exists {
+			if userStr, ok := userVal.(string); ok {
+				username = userStr
+			}
+		} else if userVal, exists := v["username"]; exists {
+			if userStr, ok := userVal.(string); ok {
+				username = userStr
+			}
 		}
-	} else if userVal, exists := data["username"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
+		
+		// Look for email field in this object
+		if emailVal, exists := v["email"]; exists {
+			if emailStr, ok := emailVal.(string); ok {
+				email = emailStr
+			}
 		}
-	} else if userVal, exists := data["name"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
+		
+		// If we found both username and email in this object, create mapping
+		if username != "" && email != "" {
+			s.createUserMapping(username, email)
 		}
-	}
-	
-	// Look for email field
-	if emailVal, exists := data["email"]; exists {
-		if emailStr, ok := emailVal.(string); ok {
-			email = emailStr
+		
+		// Recursively search all nested objects
+		for _, value := range v {
+			s.findUserMappingsRecursive(value)
 		}
-	}
-	
-	// If we have both username and email, create mapping
-	if username != "" && email != "" {
-		s.createUserMapping(username, email)
+		
+	case []interface{}:
+		// Recursively search all array elements
+		for _, item := range v {
+			s.findUserMappingsRecursive(item)
+		}
 	}
 }
 

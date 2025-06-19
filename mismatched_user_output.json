@@ -1,0 +1,2 @@
+{"timestamp":"2025-05-20 17:11:00.000 Z","level":"info","msg":"User with different username and email","user":"user1","email":"user1@domain.com","ldap_user":{"username":"user2","email":"user2@domain.com"}}
+{"timestamp":"2025-05-20 17:12:00.000 Z","level":"debug","msg":"Same users again","user":"user1","email":"user1@domain.com","ldap_user":{"username":"user2","email":"user2@domain.com"}}
