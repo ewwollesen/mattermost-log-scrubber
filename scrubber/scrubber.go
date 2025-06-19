@@ -103,7 +103,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 
 // processLogLine processes a single log line and returns the scrubbed version
 func (s *Scrubber) processLogLine(line string) (string, error) {
-	// Try to parse as JSON
+	// Try to parse as JSON to validate and extract user mapping data
 	var rawData map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &rawData); err != nil {
 		// If not valid JSON, treat as plain text and scrub
@@ -115,13 +115,8 @@ func (s *Scrubber) processLogLine(line string) (string, error) {
 		s.detectAndMapUser(rawData)
 	}
 
-	// Convert to JSON, scrub, and convert back
-	jsonBytes, err := json.Marshal(rawData)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal JSON: %w", err)
-	}
-
-	scrubbedJSON := s.scrubJSONString(string(jsonBytes))
+	// Work directly with the JSON string to preserve field order
+	scrubbedJSON := s.scrubJSONString(line)
 	
 	// Validate that the result is still valid JSON
 	var temp interface{}
