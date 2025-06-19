@@ -1,0 +1,5 @@
+{"email":"******@example.com","ip":"***.***.***.***","level":"info","msg":"User login","user":"******"}
+{"email":"*****@company.org","ip":"***.***.***.***","level":"debug","msg":"Message posted","user":"*****"}
+{"email":"******@example.com","ip":"***.***.***.***","level":"info","msg":"Another action","user":"******"}
+{"email":"*****@company.org","ip":"***.***.***.***","level":"warn","msg":"Failed attempt"}
+{"email":"***@newcompany.net","ip":"***.***.***.***","level":"info","msg":"New user","user":"***"}

@@ -9,23 +9,35 @@ import (
 	"strings"
 )
 
-type Scrubber struct {
-	level    int
-	verbose  bool
-	emailMap map[string]string
-	userMap  map[string]string
-	ipMap    map[string]string
-	uidMap   map[string]string
+type UserMapping struct {
+	Username string
+	Email    string
+	MappedID int
 }
 
-func NewScrubber(level int, verbose bool) *Scrubber {
+type Scrubber struct {
+	level       int
+	verbose     bool
+	useMapping  bool
+	emailMap    map[string]string
+	userMap     map[string]string
+	ipMap       map[string]string
+	uidMap      map[string]string
+	userMappings map[string]*UserMapping // key: username or email -> UserMapping
+	userCounter  int
+}
+
+func NewScrubber(level int, verbose bool, useMapping bool) *Scrubber {
 	return &Scrubber{
-		level:    level,
-		verbose:  verbose,
-		emailMap: make(map[string]string),
-		userMap:  make(map[string]string),
-		ipMap:    make(map[string]string),
-		uidMap:   make(map[string]string),
+		level:        level,
+		verbose:      verbose,
+		useMapping:   useMapping,
+		emailMap:     make(map[string]string),
+		userMap:      make(map[string]string),
+		ipMap:        make(map[string]string),
+		uidMap:       make(map[string]string),
+		userMappings: make(map[string]*UserMapping),
+		userCounter:  0,
 	}
 }
 
@@ -98,6 +110,11 @@ func (s *Scrubber) processLogLine(line string) (string, error) {
 		return s.scrubPlainText(line), nil
 	}
 
+	// If using mapping mode, detect and create user mappings first
+	if s.useMapping {
+		s.detectAndMapUser(rawData)
+	}
+
 	// Convert to JSON, scrub, and convert back
 	jsonBytes, err := json.Marshal(rawData)
 	if err != nil {
@@ -167,7 +184,13 @@ func (s *Scrubber) scrubEmails(text string) string {
 			return scrubbed
 		}
 
-		scrubbed := s.scrubEmailByLevel(email)
+		var scrubbed string
+		if s.useMapping {
+			scrubbed = s.getUserMappedEmail(email)
+		} else {
+			scrubbed = s.scrubEmailByLevel(email)
+		}
+		
 		s.emailMap[email] = scrubbed
 		return scrubbed
 	})
@@ -207,7 +230,13 @@ func (s *Scrubber) scrubUsernames(text string) string {
 			return key + scrubbed + `"`
 		}
 
-		scrubbed := s.scrubUsernameByLevel(username)
+		var scrubbed string
+		if s.useMapping {
+			scrubbed = s.getUserMappedName(username)
+		} else {
+			scrubbed = s.scrubUsernameByLevel(username)
+		}
+		
 		s.userMap[username] = scrubbed
 		return key + scrubbed + `"`
 	})
@@ -232,4 +261,113 @@ func (s *Scrubber) scrubUIDs(text string) string {
 		s.uidMap[uid] = scrubbed
 		return scrubbed
 	})
+}
+
+// detectAndMapUser detects username and email pairs in JSON data and creates user mappings
+func (s *Scrubber) detectAndMapUser(data map[string]interface{}) {
+	var username, email string
+	
+	// Look for username fields
+	if userVal, exists := data["user"]; exists {
+		if userStr, ok := userVal.(string); ok {
+			username = userStr
+		}
+	} else if userVal, exists := data["username"]; exists {
+		if userStr, ok := userVal.(string); ok {
+			username = userStr
+		}
+	} else if userVal, exists := data["name"]; exists {
+		if userStr, ok := userVal.(string); ok {
+			username = userStr
+		}
+	}
+	
+	// Look for email field
+	if emailVal, exists := data["email"]; exists {
+		if emailStr, ok := emailVal.(string); ok {
+			email = emailStr
+		}
+	}
+	
+	// If we have both username and email, create mapping
+	if username != "" && email != "" {
+		s.createUserMapping(username, email)
+	}
+}
+
+// createUserMapping creates a mapping for a username/email pair
+func (s *Scrubber) createUserMapping(username, email string) {
+	// Check if we already have a mapping for either username or email
+	if mapping, exists := s.userMappings[username]; exists {
+		// Link the email to existing mapping if not already linked
+		if mapping.Email == "" {
+			mapping.Email = email
+			s.userMappings[email] = mapping
+		}
+		return
+	}
+	
+	if mapping, exists := s.userMappings[email]; exists {
+		// Link the username to existing mapping if not already linked
+		if mapping.Username == "" {
+			mapping.Username = username
+			s.userMappings[username] = mapping
+		}
+		return
+	}
+	
+	// Create new user mapping
+	s.userCounter++
+	mapping := &UserMapping{
+		Username: username,
+		Email:    email,
+		MappedID: s.userCounter,
+	}
+	
+	s.userMappings[username] = mapping
+	s.userMappings[email] = mapping
+	
+	if s.verbose {
+		fmt.Printf("Created user mapping: %s / %s -> user%d\n", username, email, s.userCounter)
+	}
+}
+
+// getUserMappedName returns the mapped username for a given original username
+func (s *Scrubber) getUserMappedName(username string) string {
+	if mapping, exists := s.userMappings[username]; exists {
+		return fmt.Sprintf("user%d", mapping.MappedID)
+	}
+	// If no mapping exists, create one for standalone username
+	s.userCounter++
+	mapping := &UserMapping{
+		Username: username,
+		MappedID: s.userCounter,
+	}
+	s.userMappings[username] = mapping
+	
+	if s.verbose {
+		fmt.Printf("Created standalone user mapping: %s -> user%d\n", username, s.userCounter)
+	}
+	
+	return fmt.Sprintf("user%d", mapping.MappedID)
+}
+
+// getUserMappedEmail returns the mapped email for a given original email
+func (s *Scrubber) getUserMappedEmail(email string) string {
+	if mapping, exists := s.userMappings[email]; exists {
+		return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
+	}
+	// If no mapping exists, create one for standalone email
+	s.userCounter++
+	mapping := &UserMapping{
+		Email: email,
+		MappedID: s.userCounter,
+	}
+	s.userMappings[email] = mapping
+	
+	if s.verbose {
+		fmt.Printf("Created standalone email mapping: %s -> user%d@domain.com\n", email, s.userCounter)
+	}
+	
+	return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
 }
