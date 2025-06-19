@@ -260,29 +260,49 @@ func (s *Scrubber) scrubUIDs(text string) string {
 
 // detectAndMapUser detects username and email pairs in JSON data and creates user mappings
 func (s *Scrubber) detectAndMapUser(data map[string]interface{}) {
-	var username, email string
-	
-	// Look for username fields
-	if userVal, exists := data["user"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
+	s.findUserMappingsRecursive(data)
+}
+
+// findUserMappingsRecursive recursively searches through JSON data to find username/email pairs
+func (s *Scrubber) findUserMappingsRecursive(data interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this object has both username and email fields
+		var username, email string
+		
+		// Look for username fields in this object
+		if userVal, exists := v["user"]; exists {
+			if userStr, ok := userVal.(string); ok {
+				username = userStr
+			}
+		} else if userVal, exists := v["username"]; exists {
+			if userStr, ok := userVal.(string); ok {
+				username = userStr
+			}
 		}
-	} else if userVal, exists := data["username"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
+		
+		// Look for email field in this object
+		if emailVal, exists := v["email"]; exists {
+			if emailStr, ok := emailVal.(string); ok {
+				email = emailStr
+			}
 		}
-	}
-	
-	// Look for email field
-	if emailVal, exists := data["email"]; exists {
-		if emailStr, ok := emailVal.(string); ok {
-			email = emailStr
+		
+		// If we found both username and email in this object, create mapping
+		if username != "" && email != "" {
+			s.createUserMapping(username, email)
 		}
-	}
-	
-	// If we have both username and email, create mapping
-	if username != "" && email != "" {
-		s.createUserMapping(username, email)
+		
+		// Recursively search all nested objects
+		for _, value := range v {
+			s.findUserMappingsRecursive(value)
+		}
+		
+	case []interface{}:
+		// Recursively search all array elements
+		for _, item := range v {
+			s.findUserMappingsRecursive(item)
+		}
 	}
 }
 
