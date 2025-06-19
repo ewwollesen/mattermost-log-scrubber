@@ -36,23 +36,23 @@ go build -o mattermost-scrubber
 
 ## Scrubbing Levels
 
-### Level 1 (Low) - Minimal IP Masking
+### Level 1 (Low) - User Mapping Only
+- **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
+- **Usernames**: `claude` → `user1` (user mapping)
+- **IP Addresses**: `192.168.1.154` → `192.168.1.154` (no masking)
+- **UIDs/Channel IDs/Team IDs**: Keep intact
+
+### Level 2 (Medium) - Partial IP Masking
 - **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
 - **Usernames**: `claude` → `user1` (user mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.154` (keep last octet)
-- **UIDs/Channel IDs/Team IDs**: Keep intact
-
-### Level 2 (Medium) - Full IP Masking
-- **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
-- **Usernames**: `claude` → `user1` (user mapping)
-- **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 3 (High) - Full Masking
 - **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
 - **Usernames**: `claude` → `user1` (user mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
-- **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `**********************1234` (mask all but last 4, maintain 26 char length)
+- **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `******************12345678` (mask all but last 8, maintain 26 char length)
 
 ## User Mapping
 
@@ -74,9 +74,9 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 **Output (Level 1):**
 ```json
-{"user":"user1","email":"user1@domain.com","ip":"***.***.***.10"}
-{"user":"user2","email":"user2@domain.com","ip":"***.***.***.5"}
-{"user":"user1","email":"user1@domain.com","ip":"***.***.***.1"}
+{"user":"user1","email":"user1@domain.com","ip":"192.168.1.10"}
+{"user":"user2","email":"user2@domain.com","ip":"10.0.0.5"}
+{"user":"user1","email":"user1@domain.com","ip":"172.16.0.1"}
 ```
 
 ## Examples
@@ -107,7 +107,7 @@ The scrubber automatically creates consistent user mappings for usernames and em
 ## Sample Output (Level 1)
 
 ```json
-{"channel":"general","email":"user1@domain.com","ip":"***.***.***.154","level":"info","msg":"User login successful","team":"engineering","team_id":"zyxwvu987654321098765432109876","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234"}
+{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain.com","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
 ```
 
 ## Supported Data Types

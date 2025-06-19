@@ -66,11 +66,11 @@ func (s *Scrubber) scrubIPByLevel(ip string) string {
 	}
 
 	switch s.level {
-	case 1:
+	case 2:
 		// Keep last octet only
 		return "***.***.***." + parts[3]
 
-	case 2, 3:
+	case 3:
 		// Mask entire IP
 		return "***.***.***.***"
 
@@ -85,19 +85,19 @@ func (s *Scrubber) scrubUIDByLevel(uid string) string {
 		return uid // Don't scrub UIDs for levels 1 and 2
 	}
 
-	// For level 3: mask all but last 4 digits, keep total length at 26
-	if len(uid) < 4 {
+	// For level 3: mask all but last 8 characters, keep total length at 26
+	if len(uid) < 8 {
 		return strings.Repeat("*", len(uid))
 	}
 
-	last4 := uid[len(uid)-4:]
+	last8 := uid[len(uid)-8:]
 	
 	// Ensure total length is 26
-	maskedLength := 26 - 4
+	maskedLength := 26 - 8
 	if maskedLength < 0 {
-		maskedLength = len(uid) - 4
+		maskedLength = len(uid) - 8
 	}
 	
 	masked := strings.Repeat("*", maskedLength)
-	return masked + last4
+	return masked + last8
 }

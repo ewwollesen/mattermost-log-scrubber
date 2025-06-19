@@ -129,16 +129,18 @@ func (s *Scrubber) processLogLine(line string) (string, error) {
 func (s *Scrubber) scrubJSONString(jsonStr string) string {
 	result := jsonStr
 
-	// Scrub emails
+	// Scrub emails (all levels)
 	result = s.scrubEmails(result)
 
-	// Scrub usernames
+	// Scrub usernames (all levels)
 	result = s.scrubUsernames(result)
 
-	// Scrub IP addresses
-	result = s.scrubIPAddresses(result)
+	// Scrub IP addresses (levels 2 and 3 only)
+	if s.level >= 2 {
+		result = s.scrubIPAddresses(result)
+	}
 
-	// Scrub UIDs (for level 3 only)
+	// Scrub UIDs (level 3 only)
 	if s.level == 3 {
 		result = s.scrubUIDs(result)
 	}
@@ -150,16 +152,18 @@ func (s *Scrubber) scrubJSONString(jsonStr string) string {
 func (s *Scrubber) scrubPlainText(text string) string {
 	result := text
 
-	// Scrub emails
+	// Scrub emails (all levels)
 	result = s.scrubEmails(result)
 
-	// Scrub usernames (simple word boundary approach)
+	// Scrub usernames (all levels)
 	result = s.scrubUsernames(result)
 
-	// Scrub IP addresses
-	result = s.scrubIPAddresses(result)
+	// Scrub IP addresses (levels 2 and 3 only)
+	if s.level >= 2 {
+		result = s.scrubIPAddresses(result)
+	}
 
-	// Scrub UIDs (for level 3 only)
+	// Scrub UIDs (level 3 only)
 	if s.level == 3 {
 		result = s.scrubUIDs(result)
 	}
