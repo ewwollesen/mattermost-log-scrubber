@@ -1,0 +1,2 @@
+{"timestamp":"2025-05-20 17:07:55.903 Z","user":"user1","username":"user2","name":"Claude Assistant","email":"user1@domain.com","ip":"***.***.***.10","level":"info","msg":"Test message"}
+{"timestamp":"2025-05-20 17:08:00.000 Z","name":"Alice Johnson","user":"user3","email":"user3@domain.com","ip":"***.***.***.5","level":"debug","msg":"Another test"}

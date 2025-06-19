@@ -207,7 +207,7 @@ func (s *Scrubber) scrubIPAddresses(text string) string {
 }
 
 // Username patterns - look for quoted usernames in JSON and word boundaries in plain text
-var usernameRegex = regexp.MustCompile(`"(?:user|username|name)"\s*:\s*"([^"]+)"`)
+var usernameRegex = regexp.MustCompile(`"(?:user|username)"\s*:\s*"([^"]+)"`)
 
 func (s *Scrubber) scrubUsernames(text string) string {
 	// Scrub usernames in JSON format
@@ -268,10 +268,6 @@ func (s *Scrubber) detectAndMapUser(data map[string]interface{}) {
 			username = userStr
 		}
 	} else if userVal, exists := data["username"]; exists {
-		if userStr, ok := userVal.(string); ok {
-			username = userStr
-		}
-	} else if userVal, exists := data["name"]; exists {
 		if userStr, ok := userVal.(string); ok {
 			username = userStr
 		}
