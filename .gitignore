@@ -20,11 +20,27 @@ go.work
 # Binary output
 mattermost-scrubber
 
-# Test files
-sample_log*.json
-*_scrubbed.json
-*_level*.json
+# Test files and outputs
+*.json
+!go.mod
 *.log
+
+# Specific test patterns
+*_test.json
+*_output.json
+*_scrubbed.*
+*_level*.*
+sample_*
+test_*
+consistency_*
+field_order_*
+mapping_*
+masking_*
+mismatched_*
+name_field_*
+nested_*
+order_with_*
+uid_test*
 
 # IDE files
 .vscode/
