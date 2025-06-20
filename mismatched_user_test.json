@@ -1,2 +1,0 @@
-{"timestamp":"2025-05-20 17:11:00.000 Z","level":"info","msg":"User with different username and email","user":"john.smith","email":"j.smith@company.com","ldap_user":{"username":"robot_bender","email":"bender@planetexpress.com"}}
-{"timestamp":"2025-05-20 17:12:00.000 Z","level":"debug","msg":"Same users again","user":"john.smith","email":"j.smith@company.com","ldap_user":{"username":"robot_bender","email":"bender@planetexpress.com"}}

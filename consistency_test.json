@@ -1,5 +1,0 @@
-{"level":"info","msg":"User login","user":"claude","email":"claude@example.com","ip":"192.168.1.10"}
-{"level":"debug","msg":"Message posted","user":"alice","email":"alice@company.org","ip":"10.0.0.5"}
-{"level":"info","msg":"Another action","user":"claude","email":"claude@example.com","ip":"172.16.0.1"}
-{"level":"warn","msg":"Failed attempt","email":"alice@company.org","ip":"203.0.113.42"}
-{"level":"info","msg":"New user","user":"bob","email":"bob@newcompany.net","ip":"192.168.2.100"}

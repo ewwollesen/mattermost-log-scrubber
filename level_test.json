@@ -1,2 +1,0 @@
-{"timestamp":"2025-05-20 17:07:55.903 Z","level":"info","msg":"User action","user":"claude","email":"claude@example.com","ip":"192.168.1.154","user_id":"abcdef123456789012345678901234","team_id":"zyxwvu987654321098765432109876","channel_id":"mnopqr456789012345678901234567"}
-{"timestamp":"2025-05-20 17:08:00.000 Z","level":"debug","msg":"Another action","user":"alice","email":"alice@company.org","ip":"10.0.0.25","user_id":"ghijkl789012345678901234567890","team_id":"fedcba210987654321098765432109","channel_id":"stuvwx890123456789012345678901"}

@@ -1,2 +1,0 @@
-{"timestamp":"2025-05-20 17:07:55.903 Z","user":"claude","email":"claude@example.com","ip":"192.168.1.10","level":"info","msg":"User login","caller":"auth/login.go:42"}
-{"caller":"user/profile.go:123","timestamp":"2025-05-20 17:08:00.000 Z","user":"alice","level":"debug","email":"alice@company.org","ip":"10.0.0.5","msg":"Profile update"}

@@ -1,5 +1,0 @@
-{"email":"user1@domain.com","ip":"***.***.***.10","level":"info","msg":"User login","user":"user1"}
-{"email":"user2@domain.com","ip":"***.***.***.5","level":"debug","msg":"Message posted","user":"user2"}
-{"email":"user1@domain.com","ip":"***.***.***.1","level":"info","msg":"Another action","user":"user1"}
-{"email":"user2@domain.com","ip":"***.***.***.42","level":"warn","msg":"Failed attempt"}
-{"email":"user3@domain.com","ip":"***.***.***.100","level":"info","msg":"New user","user":"user3"}
