@@ -11,7 +11,23 @@ A Golang application that scrubs identifying information from Mattermost log fil
 - **Dry-run capability** to preview changes before applying
 - **Verbose mode** for detailed processing information
 
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
+
+**Current Version**: 0.1.0
+
 ## Installation
+
+### Option 1: Download Pre-built Binary (Recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/anthropics/mattermost-log-scrubber/releases):
+
+- **Linux**: `mattermost-log-scrubber_Linux_x86_64.tar.gz` or `mattermost-log-scrubber_Linux_arm64.tar.gz`
+- **macOS**: `mattermost-log-scrubber_Darwin_x86_64.tar.gz` or `mattermost-log-scrubber_Darwin_arm64.tar.gz`  
+- **Windows**: `mattermost-log-scrubber_Windows_x86_64.zip` or `mattermost-log-scrubber_Windows_arm64.zip`
+
+### Option 2: Build from Source
 
 ```bash
 go build -o mattermost-scrubber
@@ -33,6 +49,7 @@ go build -o mattermost-scrubber
 - `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
 - `--dry-run`: Preview changes without writing output
 - `-v, --verbose`: Enable verbose output
+- `--version`: Show version and exit
 
 ## Scrubbing Levels
 
@@ -82,6 +99,9 @@ The scrubber automatically creates consistent user mappings for usernames and em
 ## Examples
 
 ```bash
+# Check version
+./mattermost-scrubber --version
+
 # Basic usage with level 1 scrubbing
 ./mattermost-scrubber -i mattermost.log -l 1
 

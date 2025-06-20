@@ -10,6 +10,8 @@ import (
 	"mattermost-log-scrubber/scrubber"
 )
 
+const version = "0.1.0"
+
 func main() {
 	var inputFile = flag.String("i", "", "Input log file path (required)")
 	var input = flag.String("input", "", "Input log file path (required)")
@@ -20,8 +22,15 @@ func main() {
 	var dryRun = flag.Bool("dry-run", false, "Preview changes without writing output")
 	var verbose = flag.Bool("v", false, "Verbose output")
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
+	var showVersion = flag.Bool("version", false, "Show version and exit")
 
 	flag.Parse()
+
+	// Handle version flag
+	if *showVersion {
+		fmt.Printf("mattermost-log-scrubber v%s\n", version)
+		os.Exit(0)
+	}
 
 	// Handle short and long flag variants
 	inputPath := *inputFile
