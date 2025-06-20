@@ -233,7 +233,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 }
 
 // UID patterns - look for long alphanumeric strings that look like IDs
-var uidRegex = regexp.MustCompile(`\b[a-f0-9]{20,}\b`)
+var uidRegex = regexp.MustCompile(`\b[a-z0-9]{20,}\b`)
 
 func (s *Scrubber) scrubUIDs(text string) string {
 	return uidRegex.ReplaceAllStringFunc(text, func(uid string) string {
