@@ -8,6 +8,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 - **User mapping** - replaces usernames/emails with consistent `user1@domain.com` format
 - **JSON and JSONL format support** for Mattermost log files
 - **Consistent replacement mapping** - same inputs always produce same outputs
+- **Audit tracking** - CSV file with original values, replacements, and usage counts
 - **Dry-run capability** to preview changes before applying
 - **Verbose mode** for detailed processing information
 
@@ -15,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.1.0
+**Current Version**: 0.2.0
 
 ## Installation
 
@@ -47,6 +48,7 @@ go build -o mattermost-scrubber
 ### Optional Flags
 
 - `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
+- `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv`)
 - `--dry-run`: Preview changes without writing output
 - `-v, --verbose`: Enable verbose output
 - `--version`: Show version and exit
@@ -96,6 +98,37 @@ The scrubber automatically creates consistent user mappings for usernames and em
 {"user":"user1","email":"user1@domain.com","ip":"172.16.0.1"}
 ```
 
+## Audit Tracking
+
+The scrubber automatically generates a CSV audit file that tracks all replacements made during processing. This file helps both customers and support teams understand what was changed and how often.
+
+### Audit File Format
+
+The audit file contains four columns:
+- **Original Value**: The original text that was replaced
+- **New Value**: What it was replaced with
+- **Times Replaced**: How many times this replacement occurred
+- **Type**: The type of data (email, username, ip, uid)
+
+### Example Audit File
+
+```csv
+Original Value,New Value,Times Replaced,Type
+claude@mattermost.com,user1@domain.com,1164,email
+claude,user1,582,username
+192.168.1.10,***.***.***.10,3,ip
+alice@company.org,user2@domain.com,856,email
+alice,user2,291,username
+```
+
+### Using the Audit File
+
+This audit file enables:
+- **Customer troubleshooting**: "The issue is with user34, which maps to your original user 'alice'"
+- **Support analysis**: "User1 appears 1164 times in logs, indicating high activity"
+- **Data verification**: Confirm all sensitive data was properly replaced
+- **Reverse lookup**: Map scrubbed identifiers back to original context when needed
+
 ## Examples
 
 ```bash
@@ -116,6 +149,12 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 # Process with verbose output to see user mappings
 ./mattermost-scrubber -i mattermost.log -l 1 -v
+
+# Specify custom audit file location
+./mattermost-scrubber -i mattermost.log -l 2 -a custom_audit.csv
+
+# Process without creating audit file (dry-run)
+./mattermost-scrubber -i mattermost.log -l 3 --dry-run
 ```
 
 ## Sample Input

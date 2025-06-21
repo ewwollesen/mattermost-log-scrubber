@@ -22,6 +22,8 @@ func main() {
 	var dryRun = flag.Bool("dry-run", false, "Preview changes without writing output")
 	var verbose = flag.Bool("v", false, "Verbose output")
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
+	var auditFile = flag.String("a", "", "Audit file path for tracking mappings (optional)")
+	var auditFileLong = flag.String("audit", "", "Audit file path for tracking mappings (optional)")
 	var showVersion = flag.Bool("version", false, "Show version and exit")
 
 	flag.Parse()
@@ -50,6 +52,11 @@ func main() {
 
 	isVerbose := *verbose || *verboseLong
 
+	auditPath := *auditFile
+	if auditPath == "" {
+		auditPath = *auditFileLong
+	}
+
 	// Validate required flags
 	if inputPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: Input file path is required\n")
@@ -76,9 +83,17 @@ func main() {
 		outputPath = base + "_scrubbed" + ext
 	}
 
+	// Set default audit path if not specified
+	if auditPath == "" {
+		ext := filepath.Ext(inputPath)
+		base := strings.TrimSuffix(inputPath, ext)
+		auditPath = base + "_audit.csv"
+	}
+
 	// Always show basic info
 	fmt.Printf("Input file: %s\n", inputPath)
 	fmt.Printf("Output file: %s\n", outputPath)
+	fmt.Printf("Audit file: %s\n", auditPath)
 	fmt.Printf("Scrubbing level: %d\n", scrubbingLevel)
 	fmt.Printf("Dry run: %t\n", *dryRun)
 
@@ -92,9 +107,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Write audit file if not dry run
+	if !*dryRun {
+		err = s.WriteAuditFile(auditPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing audit file: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	if *dryRun {
 		fmt.Println("Dry run completed successfully. No files were modified.")
 	} else {
 		fmt.Printf("Log scrubbing completed successfully. Output written to: %s\n", outputPath)
+		fmt.Printf("Audit log written to: %s\n", auditPath)
 	}
 }

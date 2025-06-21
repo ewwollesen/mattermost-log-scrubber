@@ -2,6 +2,7 @@ package scrubber
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,6 +17,13 @@ type UserMapping struct {
 	MappedID int
 }
 
+type AuditEntry struct {
+	OriginalValue   string
+	NewValue        string
+	TimesReplaced   int
+	Type            string // "email", "username", "ip", "uid"
+}
+
 type Scrubber struct {
 	level       int
 	verbose     bool
@@ -25,6 +33,7 @@ type Scrubber struct {
 	uidMap      map[string]string
 	userMappings map[string]*UserMapping // key: username or email -> UserMapping
 	userCounter  int
+	auditEntries map[string]*AuditEntry // key: original value -> AuditEntry
 }
 
 func NewScrubber(level int, verbose bool) *Scrubber {
@@ -37,6 +46,7 @@ func NewScrubber(level int, verbose bool) *Scrubber {
 		uidMap:       make(map[string]string),
 		userMappings: make(map[string]*UserMapping),
 		userCounter:  0,
+		auditEntries: make(map[string]*AuditEntry),
 	}
 }
 
@@ -210,6 +220,7 @@ var emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{
 func (s *Scrubber) scrubEmails(text string) string {
 	return emailRegex.ReplaceAllStringFunc(text, func(email string) string {
 		if scrubbed, exists := s.emailMap[email]; exists {
+			s.trackReplacement(email, scrubbed, "email")
 			return scrubbed
 		}
 
@@ -217,6 +228,7 @@ func (s *Scrubber) scrubEmails(text string) string {
 		scrubbed := s.getUserMappedEmail(email)
 		
 		s.emailMap[email] = scrubbed
+		s.trackReplacement(email, scrubbed, "email")
 		return scrubbed
 	})
 }
@@ -227,11 +239,13 @@ var ipRegex = regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
 func (s *Scrubber) scrubIPAddresses(text string) string {
 	return ipRegex.ReplaceAllStringFunc(text, func(ip string) string {
 		if scrubbed, exists := s.ipMap[ip]; exists {
+			s.trackReplacement(ip, scrubbed, "ip")
 			return scrubbed
 		}
 
 		scrubbed := s.scrubIPByLevel(ip)
 		s.ipMap[ip] = scrubbed
+		s.trackReplacement(ip, scrubbed, "ip")
 		return scrubbed
 	})
 }
@@ -252,6 +266,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		username := strings.TrimSuffix(parts[1], `"`)
 		
 		if scrubbed, exists := s.userMap[username]; exists {
+			s.trackReplacement(username, scrubbed, "username")
 			return key + scrubbed + `"`
 		}
 
@@ -259,6 +274,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		scrubbed := s.getUserMappedName(username)
 		
 		s.userMap[username] = scrubbed
+		s.trackReplacement(username, scrubbed, "username")
 		return key + scrubbed + `"`
 	})
 
@@ -275,11 +291,13 @@ func (s *Scrubber) scrubUIDs(text string) string {
 		}
 
 		if scrubbed, exists := s.uidMap[uid]; exists {
+			s.trackReplacement(uid, scrubbed, "uid")
 			return scrubbed
 		}
 
 		scrubbed := s.scrubUIDByLevel(uid)
 		s.uidMap[uid] = scrubbed
+		s.trackReplacement(uid, scrubbed, "uid")
 		return scrubbed
 	})
 }
@@ -407,4 +425,50 @@ func (s *Scrubber) getUserMappedEmail(email string) string {
 	}
 	
 	return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
+}
+
+// trackReplacement tracks a replacement for audit purposes
+func (s *Scrubber) trackReplacement(original, newValue, valueType string) {
+	if entry, exists := s.auditEntries[original]; exists {
+		entry.TimesReplaced++
+	} else {
+		s.auditEntries[original] = &AuditEntry{
+			OriginalValue: original,
+			NewValue:      newValue,
+			TimesReplaced: 1,
+			Type:          valueType,
+		}
+	}
+}
+
+// WriteAuditFile writes the audit log to a CSV file
+func (s *Scrubber) WriteAuditFile(filePath string) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create audit file: %w", err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	if err := writer.Write([]string{"Original Value", "New Value", "Times Replaced", "Type"}); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write audit entries
+	for _, entry := range s.auditEntries {
+		record := []string{
+			entry.OriginalValue,
+			entry.NewValue,
+			fmt.Sprintf("%d", entry.TimesReplaced),
+			entry.Type,
+		}
+		if err := writer.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return nil
 }

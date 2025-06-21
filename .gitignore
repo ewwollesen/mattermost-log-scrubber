@@ -24,7 +24,7 @@ mattermost-scrubber
 *.json
 !go.mod
 *.log
-
+*.csv
 
 # IDE files
 .vscode/
@@ -38,3 +38,4 @@ mattermost-scrubber
 
 # Random files
 ideas.txt
+bugs.txt
