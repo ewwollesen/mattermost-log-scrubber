@@ -219,7 +219,8 @@ var emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{
 
 func (s *Scrubber) scrubEmails(text string) string {
 	return emailRegex.ReplaceAllStringFunc(text, func(email string) string {
-		if scrubbed, exists := s.emailMap[email]; exists {
+		emailLower := strings.ToLower(email)
+		if scrubbed, exists := s.emailMap[emailLower]; exists {
 			s.trackReplacement(email, scrubbed, "email")
 			return scrubbed
 		}
@@ -227,7 +228,7 @@ func (s *Scrubber) scrubEmails(text string) string {
 		// Always use user mapping for emails
 		scrubbed := s.getUserMappedEmail(email)
 		
-		s.emailMap[email] = scrubbed
+		s.emailMap[emailLower] = scrubbed
 		s.trackReplacement(email, scrubbed, "email")
 		return scrubbed
 	})
@@ -265,7 +266,8 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		key := parts[0] + `":"`
 		username := strings.TrimSuffix(parts[1], `"`)
 		
-		if scrubbed, exists := s.userMap[username]; exists {
+		usernameLower := strings.ToLower(username)
+		if scrubbed, exists := s.userMap[usernameLower]; exists {
 			s.trackReplacement(username, scrubbed, "username")
 			return key + scrubbed + `"`
 		}
@@ -273,7 +275,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		// Always use user mapping for usernames
 		scrubbed := s.getUserMappedName(username)
 		
-		s.userMap[username] = scrubbed
+		s.userMap[usernameLower] = scrubbed
 		s.trackReplacement(username, scrubbed, "username")
 		return key + scrubbed + `"`
 	})
@@ -352,21 +354,25 @@ func (s *Scrubber) findUserMappingsRecursive(data interface{}) {
 
 // createUserMapping creates a mapping for a username/email pair
 func (s *Scrubber) createUserMapping(username, email string) {
-	// Check if we already have a mapping for either username or email
-	if mapping, exists := s.userMappings[username]; exists {
+	// Normalize case for consistent lookups
+	usernameLower := strings.ToLower(username)
+	emailLower := strings.ToLower(email)
+	
+	// Check if we already have a mapping for either username or email (case insensitive)
+	if mapping, exists := s.userMappings[usernameLower]; exists {
 		// Link the email to existing mapping if not already linked
 		if mapping.Email == "" {
 			mapping.Email = email
-			s.userMappings[email] = mapping
+			s.userMappings[emailLower] = mapping
 		}
 		return
 	}
 	
-	if mapping, exists := s.userMappings[email]; exists {
+	if mapping, exists := s.userMappings[emailLower]; exists {
 		// Link the username to existing mapping if not already linked
 		if mapping.Username == "" {
 			mapping.Username = username
-			s.userMappings[username] = mapping
+			s.userMappings[usernameLower] = mapping
 		}
 		return
 	}
@@ -379,8 +385,8 @@ func (s *Scrubber) createUserMapping(username, email string) {
 		MappedID: s.userCounter,
 	}
 	
-	s.userMappings[username] = mapping
-	s.userMappings[email] = mapping
+	s.userMappings[usernameLower] = mapping
+	s.userMappings[emailLower] = mapping
 	
 	if s.verbose {
 		fmt.Printf("Created user mapping: %s / %s -> user%d\n", username, email, s.userCounter)
@@ -389,7 +395,8 @@ func (s *Scrubber) createUserMapping(username, email string) {
 
 // getUserMappedName returns the mapped username for a given original username
 func (s *Scrubber) getUserMappedName(username string) string {
-	if mapping, exists := s.userMappings[username]; exists {
+	usernameLower := strings.ToLower(username)
+	if mapping, exists := s.userMappings[usernameLower]; exists {
 		return fmt.Sprintf("user%d", mapping.MappedID)
 	}
 	// If no mapping exists, create one for standalone username
@@ -398,7 +405,7 @@ func (s *Scrubber) getUserMappedName(username string) string {
 		Username: username,
 		MappedID: s.userCounter,
 	}
-	s.userMappings[username] = mapping
+	s.userMappings[usernameLower] = mapping
 	
 	if s.verbose {
 		fmt.Printf("Created standalone user mapping: %s -> user%d\n", username, s.userCounter)
@@ -409,7 +416,8 @@ func (s *Scrubber) getUserMappedName(username string) string {
 
 // getUserMappedEmail returns the mapped email for a given original email
 func (s *Scrubber) getUserMappedEmail(email string) string {
-	if mapping, exists := s.userMappings[email]; exists {
+	emailLower := strings.ToLower(email)
+	if mapping, exists := s.userMappings[emailLower]; exists {
 		return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
 	}
 	// If no mapping exists, create one for standalone email
@@ -418,7 +426,7 @@ func (s *Scrubber) getUserMappedEmail(email string) string {
 		Email: email,
 		MappedID: s.userCounter,
 	}
-	s.userMappings[email] = mapping
+	s.userMappings[emailLower] = mapping
 	
 	if s.verbose {
 		fmt.Printf("Created standalone email mapping: %s -> user%d@domain.com\n", email, s.userCounter)
