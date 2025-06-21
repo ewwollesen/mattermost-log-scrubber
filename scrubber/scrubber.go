@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type UserMapping struct {
@@ -61,6 +62,16 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 	processedCount := 0
 	emptyCount := 0
 	failedCount := 0
+	
+	// Progress tracking (only if not verbose)
+	var startTime, lastProgressTime time.Time
+	progressInterval := 1000 // Show progress every 1000 lines
+	
+	if !s.verbose {
+		startTime = time.Now()
+		lastProgressTime = startTime
+		fmt.Print("Processing... ")
+	}
 
 	for scanner.Scan() {
 		lineCount++
@@ -74,7 +85,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 		scrubbedLine, err := s.processLogLine(line)
 		if err != nil {
 			failedCount++
-			fmt.Printf("Warning: Failed to process line %d: %v\n", lineCount, err)
+			fmt.Printf("\nWarning: Failed to process line %d: %v\n", lineCount, err)
 			// Write original line if processing fails
 			scrubbedLine = line
 		}
@@ -88,6 +99,20 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 		} else if s.verbose {
 			fmt.Printf("Line %d would be scrubbed\n", lineCount)
 		}
+		
+		// Show progress every 1000 lines or every second (only if not verbose)
+		if !s.verbose {
+			now := time.Now()
+			if lineCount%progressInterval == 0 || now.Sub(lastProgressTime) >= time.Second {
+				fmt.Printf("\rProcessing... %d lines", lineCount)
+				lastProgressTime = now
+			}
+		}
+	}
+	
+	// Clear progress line (only if not verbose)
+	if !s.verbose {
+		fmt.Print("\r" + strings.Repeat(" ", 50) + "\r")
 	}
 
 	if err := scanner.Err(); err != nil {
