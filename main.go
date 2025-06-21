@@ -10,7 +10,7 @@ import (
 	"mattermost-log-scrubber/scrubber"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
 	var inputFile = flag.String("i", "", "Input log file path (required)")
