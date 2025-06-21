@@ -35,3 +35,6 @@ mattermost-scrubber
 
 # macOS
 .DS_Store
+
+# Random files
+ideas.txt
