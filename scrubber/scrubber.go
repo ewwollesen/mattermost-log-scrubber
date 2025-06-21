@@ -59,20 +59,22 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 	scanner := bufio.NewScanner(inputFile)
 	lineCount := 0
 	processedCount := 0
+	emptyCount := 0
+	failedCount := 0
 
 	for scanner.Scan() {
 		lineCount++
 		line := scanner.Text()
 		
 		if strings.TrimSpace(line) == "" {
+			emptyCount++
 			continue
 		}
 
 		scrubbedLine, err := s.processLogLine(line)
 		if err != nil {
-			if s.verbose {
-				fmt.Printf("Warning: Failed to process line %d: %v\n", lineCount, err)
-			}
+			failedCount++
+			fmt.Printf("Warning: Failed to process line %d: %v\n", lineCount, err)
 			// Write original line if processing fails
 			scrubbedLine = line
 		}
@@ -92,8 +94,15 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 		return fmt.Errorf("error reading input file: %w", err)
 	}
 
-	// Always show processed lines count
-	fmt.Printf("Processed %d lines out of %d total lines\n", processedCount, lineCount)
+	// Always show processed lines count with breakdown
+	fmt.Printf("Processed %d lines out of %d total lines", processedCount, lineCount)
+	if emptyCount > 0 {
+		fmt.Printf(" (%d empty lines skipped)", emptyCount)
+	}
+	if failedCount > 0 {
+		fmt.Printf(" (%d lines failed processing but were included)", failedCount)
+	}
+	fmt.Println()
 
 	return nil
 }
