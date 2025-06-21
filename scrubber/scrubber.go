@@ -92,9 +92,8 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 		return fmt.Errorf("error reading input file: %w", err)
 	}
 
-	if s.verbose {
-		fmt.Printf("Processed %d lines out of %d total lines\n", processedCount, lineCount)
-	}
+	// Always show processed lines count
+	fmt.Printf("Processed %d lines out of %d total lines\n", processedCount, lineCount)
 
 	return nil
 }

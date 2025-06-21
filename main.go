@@ -76,12 +76,11 @@ func main() {
 		outputPath = base + "_scrubbed" + ext
 	}
 
-	if isVerbose {
-		fmt.Printf("Input file: %s\n", inputPath)
-		fmt.Printf("Output file: %s\n", outputPath)
-		fmt.Printf("Scrubbing level: %d\n", scrubbingLevel)
-		fmt.Printf("Dry run: %t\n", *dryRun)
-	}
+	// Always show basic info
+	fmt.Printf("Input file: %s\n", inputPath)
+	fmt.Printf("Output file: %s\n", outputPath)
+	fmt.Printf("Scrubbing level: %d\n", scrubbingLevel)
+	fmt.Printf("Dry run: %t\n", *dryRun)
 
 	// Initialize scrubber
 	s := scrubber.NewScrubber(scrubbingLevel, isVerbose)
