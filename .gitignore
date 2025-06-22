@@ -19,6 +19,8 @@ go.work
 
 # Binary output
 mattermost-scrubber
+mattermost-log-scrubber
+*.tar.gz
 
 # Test files and outputs
 *.json
