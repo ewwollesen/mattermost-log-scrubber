@@ -10,11 +10,11 @@ import (
 	"mattermost-log-scrubber/scrubber"
 )
 
-const version = "0.3.1"
+const version = "0.3.2"
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "A Golang application that scrubs identifying information from Mattermost log files.\n\n")
+	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "Required flags:\n")
 	fmt.Fprintf(os.Stderr, "  -i, --input string    Input log file path\n")
 	fmt.Fprintf(os.Stderr, "  -l, --level int       Scrubbing level (1, 2, or 3)\n\n")
@@ -23,7 +23,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -a, --audit string    Audit file path for tracking mappings (default: <input>_audit.csv)\n")
 	fmt.Fprintf(os.Stderr, "  --dry-run             Preview changes without writing output\n")
 	fmt.Fprintf(os.Stderr, "  -v, --verbose         Verbose output\n")
-	fmt.Fprintf(os.Stderr, "  --version             Show version and exit\n")
+	fmt.Fprintf(os.Stderr, "  -V, --version         Show version and exit\n")
 	fmt.Fprintf(os.Stderr, "  -h, --help            Show this help message\n\n")
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 1\n", os.Args[0])
@@ -43,7 +43,8 @@ func main() {
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
 	var auditFile = flag.String("a", "", "Audit file path for tracking mappings (optional)")
 	var auditFileLong = flag.String("audit", "", "Audit file path for tracking mappings (optional)")
-	var showVersion = flag.Bool("version", false, "Show version and exit")
+	var showVersion = flag.Bool("V", false, "Show version and exit")
+	var showVersionLong = flag.Bool("version", false, "Show version and exit")
 	var showHelp = flag.Bool("h", false, "Show help message")
 	var showHelpLong = flag.Bool("help", false, "Show help message")
 
@@ -59,7 +60,7 @@ func main() {
 	}
 
 	// Handle version flag
-	if *showVersion {
+	if *showVersion || *showVersionLong {
 		fmt.Printf("mattermost-log-scrubber v%s\n", version)
 		os.Exit(0)
 	}
