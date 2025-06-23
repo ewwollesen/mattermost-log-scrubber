@@ -1,0 +1,55 @@
+package constants
+
+// Application constants
+const (
+	Version     = "0.6.0"
+	AppName     = "mattermost-log-scrubber"
+	Description = "A Golang application that scrubs identifying information from Mattermost log files."
+)
+
+// File-related constants
+const (
+	DefaultConfigFile = "scrubber_config.json"
+	ScrubSuffix       = "_scrubbed"
+	AuditSuffix       = "_audit"
+)
+
+// Audit file types
+const (
+	AuditTypeCSV  = "csv"
+	AuditTypeJSON = "json"
+)
+
+// File extensions
+const (
+	ExtCSV  = ".csv"
+	ExtJSON = ".json"
+)
+
+// Scrubbing levels
+const (
+	ScrubLevelLow    = 1
+	ScrubLevelMedium = 2
+	ScrubLevelHigh   = 3
+)
+
+// Domain constants
+const (
+	DefaultDomain = "example.com"
+)
+
+// Processing constants
+const (
+	ProgressInterval = 1000 // Show progress every N lines
+	MinUIDLength     = 20   // Minimum UID length for scrubbing
+	UIDTargetLength  = 26   // Target UID length after scrubbing
+	UIDKeepChars     = 8    // Characters to keep at end of UID
+)
+
+// Scrubbing type constants
+const (
+	TypeEmail    = "email"
+	TypeUsername = "username"
+	TypeIP       = "ip"
+	TypeUID      = "uid"
+)

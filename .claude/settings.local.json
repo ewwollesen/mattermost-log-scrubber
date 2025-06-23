@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(grep:*)",
+      "Bash(./mattermost-log-scrubber:*)"
     ],
     "deny": []
   }

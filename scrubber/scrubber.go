@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"mattermost-log-scrubber/constants"
 )
 
 type UserMapping struct {
@@ -79,7 +81,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 	
 	// Progress tracking (only if not verbose)
 	var startTime, lastProgressTime time.Time
-	progressInterval := 1000 // Show progress every 1000 lines
+	progressInterval := constants.ProgressInterval // Show progress every N lines
 	
 	if !s.verbose {
 		startTime = time.Now()
@@ -225,7 +227,7 @@ func (s *Scrubber) scrubEmails(text string) string {
 	return emailRegex.ReplaceAllStringFunc(text, func(email string) string {
 		emailLower := strings.ToLower(email)
 		if scrubbed, exists := s.emailMap[emailLower]; exists {
-			s.trackReplacement(email, scrubbed, "email")
+			s.trackReplacement(email, scrubbed, constants.TypeEmail)
 			return scrubbed
 		}
 
@@ -233,7 +235,7 @@ func (s *Scrubber) scrubEmails(text string) string {
 		scrubbed := s.getUserMappedEmail(email)
 		
 		s.emailMap[emailLower] = scrubbed
-		s.trackReplacement(email, scrubbed, "email")
+		s.trackReplacement(email, scrubbed, constants.TypeEmail)
 		return scrubbed
 	})
 }
@@ -244,13 +246,13 @@ var ipRegex = regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
 func (s *Scrubber) scrubIPAddresses(text string) string {
 	return ipRegex.ReplaceAllStringFunc(text, func(ip string) string {
 		if scrubbed, exists := s.ipMap[ip]; exists {
-			s.trackReplacement(ip, scrubbed, "ip")
+			s.trackReplacement(ip, scrubbed, constants.TypeIP)
 			return scrubbed
 		}
 
 		scrubbed := s.scrubIPByLevel(ip)
 		s.ipMap[ip] = scrubbed
-		s.trackReplacement(ip, scrubbed, "ip")
+		s.trackReplacement(ip, scrubbed, constants.TypeIP)
 		return scrubbed
 	})
 }
@@ -272,7 +274,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		
 		usernameLower := strings.ToLower(username)
 		if scrubbed, exists := s.userMap[usernameLower]; exists {
-			s.trackReplacement(username, scrubbed, "username")
+			s.trackReplacement(username, scrubbed, constants.TypeUsername)
 			return key + scrubbed + `"`
 		}
 
@@ -280,7 +282,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		scrubbed := s.getUserMappedName(username)
 		
 		s.userMap[usernameLower] = scrubbed
-		s.trackReplacement(username, scrubbed, "username")
+		s.trackReplacement(username, scrubbed, constants.TypeUsername)
 		return key + scrubbed + `"`
 	})
 
@@ -288,22 +290,22 @@ func (s *Scrubber) scrubUsernames(text string) string {
 }
 
 // UID patterns - look for long alphanumeric strings that look like IDs
-var uidRegex = regexp.MustCompile(`\b[a-z0-9]{20,}\b`)
+var uidRegex = regexp.MustCompile(`\b[a-z0-9]{` + fmt.Sprintf("%d", constants.MinUIDLength) + `,}\b`)
 
 func (s *Scrubber) scrubUIDs(text string) string {
 	return uidRegex.ReplaceAllStringFunc(text, func(uid string) string {
-		if len(uid) < 20 {
+		if len(uid) < constants.MinUIDLength {
 			return uid
 		}
 
 		if scrubbed, exists := s.uidMap[uid]; exists {
-			s.trackReplacement(uid, scrubbed, "uid")
+			s.trackReplacement(uid, scrubbed, constants.TypeUID)
 			return scrubbed
 		}
 
 		scrubbed := s.scrubUIDByLevel(uid)
 		s.uidMap[uid] = scrubbed
-		s.trackReplacement(uid, scrubbed, "uid")
+		s.trackReplacement(uid, scrubbed, constants.TypeUID)
 		return scrubbed
 	})
 }
@@ -444,7 +446,7 @@ func (s *Scrubber) getMappedDomain(email string) string {
 	// Extract domain from email
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		return "example.com" // fallback for invalid emails
+		return constants.DefaultDomain // fallback for invalid emails
 	}
 	
 	originalDomain := strings.ToLower(parts[1])
@@ -456,7 +458,7 @@ func (s *Scrubber) getMappedDomain(email string) string {
 	
 	// Create new domain mapping
 	s.domainCounter++
-	mappedDomain := fmt.Sprintf("domain%d.example.com", s.domainCounter)
+	mappedDomain := fmt.Sprintf("domain%d.%s", s.domainCounter, constants.DefaultDomain)
 	s.domainMap[originalDomain] = mappedDomain
 	
 	if s.verbose {
