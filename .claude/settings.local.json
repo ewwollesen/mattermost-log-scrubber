@@ -4,7 +4,9 @@
       "Bash(mkdir:*)",
       "Bash(go build:*)",
       "Bash(grep:*)",
-      "Bash(./mattermost-log-scrubber:*)"
+      "Bash(./mattermost-log-scrubber:*)",
+      "Bash(gunzip:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

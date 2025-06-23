@@ -2,7 +2,7 @@ package constants
 
 // Application constants
 const (
-	Version     = "0.6.0"
+	Version     = "0.7.0"
 	AppName     = "mattermost-log-scrubber"
 	Description = "A Golang application that scrubs identifying information from Mattermost log files."
 )
@@ -24,6 +24,7 @@ const (
 const (
 	ExtCSV  = ".csv"
 	ExtJSON = ".json"
+	ExtGZ   = ".gz"
 )
 
 // Scrubbing levels

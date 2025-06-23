@@ -3,7 +3,8 @@
     "InputFile": "/opt/mattermost/logs/mattermost.log",
     "OutputFile": "/var/tmp/scrubbed_mattermost.log",
     "AuditFile": "/var/tmp/mattermost_scrubbed_audit.json",
-    "AuditFileType": "json"
+    "AuditFileType": "json",
+    "CompressOutputFile": true
   },
   "ScrubSettings": {
     "ScrubLevel": 1

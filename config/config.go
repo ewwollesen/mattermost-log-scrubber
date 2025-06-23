@@ -10,10 +10,11 @@ import (
 
 // FileSettings contains file-related configuration
 type FileSettings struct {
-	InputFile     string `json:"InputFile"`
-	OutputFile    string `json:"OutputFile"`
-	AuditFile     string `json:"AuditFile"`
-	AuditFileType string `json:"AuditFileType"`
+	InputFile          string `json:"InputFile"`
+	OutputFile         string `json:"OutputFile"`
+	AuditFile          string `json:"AuditFile"`
+	AuditFileType      string `json:"AuditFileType"`
+	CompressOutputFile bool   `json:"CompressOutputFile"`
 }
 
 // ScrubSettings contains scrubbing-related configuration
@@ -52,13 +53,14 @@ func LoadConfig(configPath string) (*Config, error) {
 
 // ResolvedSettings contains all resolved configuration values
 type ResolvedSettings struct {
-	InputPath     string
-	OutputPath    string
-	AuditPath     string
-	AuditFileType string
-	ScrubLevel    int
-	Verbose       bool
-	DryRun        bool
+	InputPath          string
+	OutputPath         string
+	AuditPath          string
+	AuditFileType      string
+	ScrubLevel         int
+	Verbose            bool
+	DryRun             bool
+	CompressOutputFile bool
 }
 
 // CLIFlags represents command line flag values
@@ -77,6 +79,8 @@ type CLIFlags struct {
 	Verbose       bool
 	VerboseLong   bool
 	DryRun        bool
+	Compress      bool
+	CompressLong  bool
 }
 
 // ResolveSettings resolves final configuration values from CLI flags and config file
@@ -137,6 +141,12 @@ func ResolveSettings(flags CLIFlags, config *Config) ResolvedSettings {
 
 	// Set dry run (CLI only)
 	settings.DryRun = flags.DryRun
+
+	// Resolve compression setting
+	settings.CompressOutputFile = flags.Compress || flags.CompressLong
+	if !settings.CompressOutputFile && config != nil {
+		settings.CompressOutputFile = config.FileSettings.CompressOutputFile
+	}
 
 	return settings
 }

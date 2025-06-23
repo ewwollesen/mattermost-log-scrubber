@@ -16,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.6.0
+**Current Version**: 0.7.0
 
 ## Installation
 
@@ -50,6 +50,7 @@ go build -o mattermost-scrubber
 - `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
 - `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv` or `<input>_audit.json`)
 - `--audit-type`: Audit file format: csv or json (default: csv)
+- `-z, --compress`: Compress output file with gzip
 - `--dry-run`: Preview changes without writing output
 - `-v, --verbose`: Enable verbose output
 - `--version`: Show version and exit
@@ -184,6 +185,7 @@ The scrubber supports JSON configuration files for easier management of settings
 - **OutputFile**: Path where the scrubbed log will be written
 - **AuditFile**: Path where the audit file will be written
 - **AuditFileType**: Format for audit output ("csv" or "json")
+- **CompressOutputFile**: Compress output file with gzip (true/false)
 - **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
 - **Verbose**: Enable verbose output showing user mappings and processing details
 
@@ -235,6 +237,9 @@ Command line arguments override configuration file values:
 
 # Generate JSON audit file instead of CSV
 ./mattermost-scrubber -i mattermost.log -l 2 --audit-type json
+
+# Compress output file with gzip
+./mattermost-scrubber -i mattermost.log -l 1 --compress
 
 # Process without creating audit file (dry-run)
 ./mattermost-scrubber -i mattermost.log -l 3 --dry-run

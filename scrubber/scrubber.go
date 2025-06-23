@@ -2,9 +2,11 @@ package scrubber
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -57,20 +59,31 @@ func NewScrubber(level int, verbose bool) *Scrubber {
 }
 
 // ProcessFile processes the input file and writes scrubbed output
-func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error {
+func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compress bool) error {
 	inputFile, err := os.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("failed to open input file: %w", err)
 	}
 	defer inputFile.Close()
 
+	var outputWriter io.Writer
 	var outputFile *os.File
+	var gzipWriter *gzip.Writer
+	
 	if !dryRun {
 		outputFile, err = os.Create(outputPath)
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer outputFile.Close()
+		
+		if compress {
+			gzipWriter = gzip.NewWriter(outputFile)
+			defer gzipWriter.Close()
+			outputWriter = gzipWriter
+		} else {
+			outputWriter = outputFile
+		}
 	}
 
 	scanner := bufio.NewScanner(inputFile)
@@ -109,7 +122,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool) error 
 		processedCount++
 
 		if !dryRun {
-			if _, err := outputFile.WriteString(scrubbedLine + "\n"); err != nil {
+			if _, err := outputWriter.Write([]byte(scrubbedLine + "\n")); err != nil {
 				return fmt.Errorf("failed to write to output file: %w", err)
 			}
 		} else if s.verbose {

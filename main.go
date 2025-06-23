@@ -76,6 +76,11 @@ func resolveFilePaths(settings *config.ResolvedSettings) {
 		base := strings.TrimSuffix(settings.InputPath, ext)
 		settings.OutputPath = base + constants.ScrubSuffix + ext
 	}
+	
+	// Add .gz extension if compression is enabled and not already present
+	if settings.CompressOutputFile && !strings.HasSuffix(settings.OutputPath, constants.ExtGZ) {
+		settings.OutputPath += constants.ExtGZ
+	}
 
 	// Set default audit path if not specified
 	if settings.AuditPath == "" {
@@ -95,6 +100,7 @@ func showConfigInfo(settings config.ResolvedSettings) {
 	fmt.Printf("Output file: %s\n", settings.OutputPath)
 	fmt.Printf("Audit file: %s\n", settings.AuditPath)
 	fmt.Printf("Scrubbing level: %d\n", settings.ScrubLevel)
+	fmt.Printf("Compress output: %t\n", settings.CompressOutputFile)
 	fmt.Printf("Dry run: %t\n", settings.DryRun)
 }
 
@@ -104,7 +110,7 @@ func runScrubbing(settings config.ResolvedSettings) error {
 	s := scrubber.NewScrubber(settings.ScrubLevel, settings.Verbose)
 
 	// Process the file
-	if err := s.ProcessFile(settings.InputPath, settings.OutputPath, settings.DryRun); err != nil {
+	if err := s.ProcessFile(settings.InputPath, settings.OutputPath, settings.DryRun, settings.CompressOutputFile); err != nil {
 		return fmt.Errorf("processing file: %w", err)
 	}
 
