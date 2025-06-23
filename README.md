@@ -130,6 +130,46 @@ This audit file enables:
 - **Data verification**: Confirm all sensitive data was properly replaced
 - **Reverse lookup**: Map scrubbed identifiers back to original context when needed
 
+## Configuration File
+
+The scrubber supports JSON configuration files for easier management of settings. An example configuration file is provided:
+
+### Example Configuration
+
+```json
+{
+  "FileSettings": {
+    "InputFile": "/opt/mattermost/logs/mattermost.log",
+    "OutputFile": "/var/tmp/scrubbed_mattermost.log",
+    "AuditFile": "/var/tmp/mattermost_scrubbed_audit.csv",
+    "AuditFileType": "csv"
+  },
+  "ScrubSettings": {
+    "ScrubLevel": 1
+  }
+}
+```
+
+**Configuration Options:**
+- **InputFile**: Path to the log file to be scrubbed
+- **OutputFile**: Path where the scrubbed log will be written
+- **AuditFile**: Path where the audit CSV will be written
+- **AuditFileType**: Format for audit output (currently only "csv" is supported)
+- **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
+
+### Configuration Usage
+
+1. **Copy the example**: `cp example_scrubber_config.json scrubber_config.json`
+2. **Edit the paths** and settings to match your environment
+3. **Run with config**: `./mattermost-scrubber --config scrubber_config.json`
+
+### Configuration Precedence
+
+Command line arguments override configuration file values:
+- **Highest Priority**: Command line flags (`-i`, `-l`, `-o`, etc.)
+- **Medium Priority**: Configuration file values
+- **Lowest Priority**: Default values
+
 ## Examples
 
 ```bash
@@ -138,6 +178,15 @@ This audit file enables:
 
 # Basic usage with level 1 scrubbing
 ./mattermost-scrubber -i mattermost.log -l 1
+
+# Using configuration file (loads scrubber_config.json by default)
+./mattermost-scrubber
+
+# Using custom configuration file
+./mattermost-scrubber --config my_config.json
+
+# Config file with command line overrides
+./mattermost-scrubber --config scrubber_config.json --level 3 --verbose
 
 # Specify custom output file with level 2 scrubbing
 ./mattermost-scrubber -i mattermost.log -o clean.log -l 2

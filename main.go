@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -12,13 +13,46 @@ import (
 
 const version = "0.4.0"
 
+type FileSettings struct {
+	InputFile     string `json:"InputFile"`
+	OutputFile    string `json:"OutputFile"`
+	AuditFile     string `json:"AuditFile"`
+	AuditFileType string `json:"AuditFileType"`
+}
+
+type ScrubSettings struct {
+	ScrubLevel int `json:"ScrubLevel"`
+}
+
+type Config struct {
+	FileSettings  FileSettings  `json:"FileSettings"`
+	ScrubSettings ScrubSettings `json:"ScrubSettings"`
+}
+
+func loadConfig(configPath string) (*Config, error) {
+	file, err := os.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open config file: %w", err)
+	}
+	defer file.Close()
+
+	var config Config
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &config, nil
+}
+
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "A Golang application that scrubs identifying information from Mattermost log files.\n\n")
 	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "Required flags:\n")
+	fmt.Fprintf(os.Stderr, "Required flags (unless using config file):\n")
 	fmt.Fprintf(os.Stderr, "  -i, --input string    Input log file path\n")
 	fmt.Fprintf(os.Stderr, "  -l, --level int       Scrubbing level (1, 2, or 3)\n\n")
 	fmt.Fprintf(os.Stderr, "Optional flags:\n")
+	fmt.Fprintf(os.Stderr, "  -c, --config string   Config file path (default: scrubber_config.json)\n")
 	fmt.Fprintf(os.Stderr, "  -o, --output string   Output file path (default: <input>_scrubbed.<ext>)\n")
 	fmt.Fprintf(os.Stderr, "  -a, --audit string    Audit file path for tracking mappings (default: <input>_audit.csv)\n")
 	fmt.Fprintf(os.Stderr, "  --dry-run             Preview changes without writing output\n")
@@ -29,6 +63,8 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 1\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --input mattermost.log --level 2 --output clean.log\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 3 --dry-run --verbose\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s --config scrubber_config.json\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -c my_config.json --verbose\n", os.Args[0])
 }
 
 func main() {
@@ -38,6 +74,8 @@ func main() {
 	var output = flag.String("output", "", "Output file path (optional)")
 	var level = flag.Int("l", 0, "Scrubbing level 1-3 (required)")
 	var levelLong = flag.Int("level", 0, "Scrubbing level 1-3 (required)")
+	var configFile = flag.String("c", "", "Config file path (default: scrubber_config.json)")
+	var configFileLong = flag.String("config", "", "Config file path (default: scrubber_config.json)")
 	var dryRun = flag.Bool("dry-run", false, "Preview changes without writing output")
 	var verbose = flag.Bool("v", false, "Verbose output")
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
@@ -65,20 +103,59 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Handle short and long flag variants
+	// Determine config file path
+	configPath := *configFile
+	if configPath == "" {
+		configPath = *configFileLong
+	}
+	
+	// Check if user explicitly specified a config file
+	userSpecifiedConfig := *configFile != "" || *configFileLong != ""
+	
+	// Set default config path if not specified
+	if configPath == "" {
+		configPath = "scrubber_config.json"
+	}
+
+	// Load config file
+	var config *Config
+	if _, err := os.Stat(configPath); err == nil {
+		config, err = loadConfig(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config file '%s': %v\n", configPath, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Config file found, using config file at %s\n", configPath)
+	} else if userSpecifiedConfig {
+		// User explicitly specified a config file that doesn't exist
+		fmt.Fprintf(os.Stderr, "Error: Specified config file '%s' does not exist\n", configPath)
+		os.Exit(1)
+	}
+
+	// Handle short and long flag variants with config file precedence
+	// Command line args override config file values
 	inputPath := *inputFile
 	if inputPath == "" {
 		inputPath = *input
+	}
+	if inputPath == "" && config != nil {
+		inputPath = config.FileSettings.InputFile
 	}
 
 	outputPath := *outputFile
 	if outputPath == "" {
 		outputPath = *output
 	}
+	if outputPath == "" && config != nil {
+		outputPath = config.FileSettings.OutputFile
+	}
 
 	scrubbingLevel := *level
 	if scrubbingLevel == 0 {
 		scrubbingLevel = *levelLong
+	}
+	if scrubbingLevel == 0 && config != nil {
+		scrubbingLevel = config.ScrubSettings.ScrubLevel
 	}
 
 	isVerbose := *verbose || *verboseLong
@@ -86,6 +163,9 @@ func main() {
 	auditPath := *auditFile
 	if auditPath == "" {
 		auditPath = *auditFileLong
+	}
+	if auditPath == "" && config != nil {
+		auditPath = config.FileSettings.AuditFile
 	}
 
 	// Validate required flags

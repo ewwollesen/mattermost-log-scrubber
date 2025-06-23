@@ -24,9 +24,14 @@ mattermost-log-scrubber
 
 # Test files and outputs
 *.json
-!go.mod
 *.log
 *.csv
+
+# Do not ignore the go.mod file
+!go.mod
+
+# Do not ignore the example_scrubber_config.json file
+!example_scrubber_config.json
 
 # IDE files
 .vscode/
