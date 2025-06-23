@@ -10,7 +10,7 @@ import (
 	"mattermost-log-scrubber/scrubber"
 )
 
-const version = "0.3.2"
+const version = "0.4.0"
 
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "A Golang application that scrubs identifying information from Mattermost log files.\n\n")

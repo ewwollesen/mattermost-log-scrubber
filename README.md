@@ -16,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.3.2
+**Current Version**: 0.4.0
 
 ## Installation
 
