@@ -25,28 +25,32 @@ type AuditEntry struct {
 }
 
 type Scrubber struct {
-	level       int
-	verbose     bool
-	emailMap    map[string]string
-	userMap     map[string]string
-	ipMap       map[string]string
-	uidMap      map[string]string
+	level        int
+	verbose      bool
+	emailMap     map[string]string
+	userMap      map[string]string
+	ipMap        map[string]string
+	uidMap       map[string]string
 	userMappings map[string]*UserMapping // key: username or email -> UserMapping
 	userCounter  int
 	auditEntries map[string]*AuditEntry // key: original value -> AuditEntry
+	domainMap    map[string]string      // key: original domain -> mapped domain
+	domainCounter int
 }
 
 func NewScrubber(level int, verbose bool) *Scrubber {
 	return &Scrubber{
-		level:        level,
-		verbose:      verbose,
-		emailMap:     make(map[string]string),
-		userMap:      make(map[string]string),
-		ipMap:        make(map[string]string),
-		uidMap:       make(map[string]string),
-		userMappings: make(map[string]*UserMapping),
-		userCounter:  0,
-		auditEntries: make(map[string]*AuditEntry),
+		level:         level,
+		verbose:       verbose,
+		emailMap:      make(map[string]string),
+		userMap:       make(map[string]string),
+		ipMap:         make(map[string]string),
+		uidMap:        make(map[string]string),
+		userMappings:  make(map[string]*UserMapping),
+		userCounter:   0,
+		auditEntries:  make(map[string]*AuditEntry),
+		domainMap:     make(map[string]string),
+		domainCounter: 0,
 	}
 }
 
@@ -418,7 +422,7 @@ func (s *Scrubber) getUserMappedName(username string) string {
 func (s *Scrubber) getUserMappedEmail(email string) string {
 	emailLower := strings.ToLower(email)
 	if mapping, exists := s.userMappings[emailLower]; exists {
-		return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
+		return fmt.Sprintf("user%d@%s", mapping.MappedID, s.getMappedDomain(email))
 	}
 	// If no mapping exists, create one for standalone email
 	s.userCounter++
@@ -429,10 +433,37 @@ func (s *Scrubber) getUserMappedEmail(email string) string {
 	s.userMappings[emailLower] = mapping
 	
 	if s.verbose {
-		fmt.Printf("Created standalone email mapping: %s -> user%d@domain.com\n", email, s.userCounter)
+		fmt.Printf("Created standalone email mapping: %s -> user%d@%s\n", email, s.userCounter, s.getMappedDomain(email))
 	}
 	
-	return fmt.Sprintf("user%d@domain.com", mapping.MappedID)
+	return fmt.Sprintf("user%d@%s", mapping.MappedID, s.getMappedDomain(email))
+}
+
+// getMappedDomain returns the mapped domain for a given email address
+func (s *Scrubber) getMappedDomain(email string) string {
+	// Extract domain from email
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return "example.com" // fallback for invalid emails
+	}
+	
+	originalDomain := strings.ToLower(parts[1])
+	
+	// Check if we already have a mapping for this domain
+	if mappedDomain, exists := s.domainMap[originalDomain]; exists {
+		return mappedDomain
+	}
+	
+	// Create new domain mapping
+	s.domainCounter++
+	mappedDomain := fmt.Sprintf("domain%d.example.com", s.domainCounter)
+	s.domainMap[originalDomain] = mappedDomain
+	
+	if s.verbose {
+		fmt.Printf("Created domain mapping: %s -> %s\n", originalDomain, mappedDomain)
+	}
+	
+	return mappedDomain
 }
 
 // trackReplacement tracks a replacement for audit purposes

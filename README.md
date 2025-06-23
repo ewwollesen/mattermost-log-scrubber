@@ -5,7 +5,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 ## Features
 
 - **Three scrubbing levels** with different levels of data masking
-- **User mapping** - replaces usernames/emails with consistent `user1@domain.com` format
+- **User mapping** - replaces usernames/emails with consistent `user1@domain1.example.com` format
 - **JSON and JSONL format support** for Mattermost log files
 - **Consistent replacement mapping** - same inputs always produce same outputs
 - **Audit tracking** - CSV file with original values, replacements, and usage counts
@@ -56,19 +56,19 @@ go build -o mattermost-scrubber
 ## Scrubbing Levels
 
 ### Level 1 (Low) - User Mapping Only
-- **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
+- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
 - **IP Addresses**: `192.168.1.154` → `192.168.1.154` (no masking)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 2 (Medium) - Partial IP Masking
-- **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
+- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.154` (keep last octet)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 3 (High) - Full Masking
-- **Emails**: `claude@domain.com` → `user1@domain.com` (user mapping)
+- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
 - **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `******************12345678` (mask all but last 8, maintain 26 char length)
@@ -79,7 +79,8 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 ### How It Works
 - **User Detection**: When username + email appear on the same log line, they're linked as the same user
-- **Sequential Naming**: First user becomes `user1`/`user1@domain.com`, second becomes `user2`/`user2@domain.com`, etc.
+- **Sequential Naming**: First user becomes `user1`/`user1@domain1.example.com`, second becomes `user2`/`user2@domain1.example.com`, etc.
+- **Domain Mapping**: Each original domain gets mapped to a numbered subdomain (`domain1.example.com`, `domain2.example.com`, etc.)
 - **Consistency**: Same original username/email always maps to the same userN across the entire file
 - **Level-based IP/UID Masking**: IP addresses and UIDs are masked according to the selected level (1-3)
 
@@ -93,9 +94,9 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 **Output (Level 1):**
 ```json
-{"user":"user1","email":"user1@domain.com","ip":"192.168.1.10"}
-{"user":"user2","email":"user2@domain.com","ip":"10.0.0.5"}
-{"user":"user1","email":"user1@domain.com","ip":"172.16.0.1"}
+{"user":"user1","email":"user1@domain1.example.com","ip":"192.168.1.10"}
+{"user":"user2","email":"user2@domain2.example.com","ip":"10.0.0.5"}
+{"user":"user1","email":"user1@domain1.example.com","ip":"172.16.0.1"}
 ```
 
 ## Audit Tracking
@@ -114,10 +115,10 @@ The audit file contains four columns:
 
 ```csv
 Original Value,New Value,Times Replaced,Type
-claude@mattermost.com,user1@domain.com,1164,email
+claude@mattermost.com,user1@domain1.example.com,1164,email
 claude,user1,582,username
 192.168.1.10,***.***.***.10,3,ip
-alice@company.org,user2@domain.com,856,email
+alice@company.org,user2@domain2.example.com,856,email
 alice,user2,291,username
 ```
 
@@ -166,7 +167,7 @@ This audit file enables:
 ## Sample Output (Level 1)
 
 ```json
-{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain.com","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
+{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain1.example.com","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
 ```
 
 ## Supported Data Types
