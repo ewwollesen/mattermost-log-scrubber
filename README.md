@@ -172,6 +172,9 @@ The scrubber supports JSON configuration files for easier management of settings
   },
   "ScrubSettings": {
     "ScrubLevel": 1
+  },
+  "OutputSettings": {
+    "Verbose": false
   }
 }
 ```
@@ -182,6 +185,7 @@ The scrubber supports JSON configuration files for easier management of settings
 - **AuditFile**: Path where the audit file will be written
 - **AuditFileType**: Format for audit output ("csv" or "json")
 - **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
+- **Verbose**: Enable verbose output showing user mappings and processing details
 
 ### Configuration Usage
 

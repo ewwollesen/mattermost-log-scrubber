@@ -24,9 +24,14 @@ type ScrubSettings struct {
 	ScrubLevel int `json:"ScrubLevel"`
 }
 
+type OutputSettings struct {
+	Verbose bool `json:"Verbose"`
+}
+
 type Config struct {
-	FileSettings  FileSettings  `json:"FileSettings"`
-	ScrubSettings ScrubSettings `json:"ScrubSettings"`
+	FileSettings   FileSettings   `json:"FileSettings"`
+	ScrubSettings  ScrubSettings  `json:"ScrubSettings"`
+	OutputSettings OutputSettings `json:"OutputSettings"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
@@ -162,6 +167,9 @@ func main() {
 	}
 
 	isVerbose := *verbose || *verboseLong
+	if !isVerbose && config != nil {
+		isVerbose = config.OutputSettings.Verbose
+	}
 
 	auditPath := *auditFile
 	if auditPath == "" {
