@@ -16,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.4.0
+**Current Version**: 0.5.0
 
 ## Installation
 
@@ -48,7 +48,8 @@ go build -o mattermost-scrubber
 ### Optional Flags
 
 - `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
-- `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv`)
+- `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv` or `<input>_audit.json`)
+- `--audit-type`: Audit file format: csv or json (default: csv)
 - `--dry-run`: Preview changes without writing output
 - `-v, --verbose`: Enable verbose output
 - `--version`: Show version and exit
@@ -101,17 +102,16 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 ## Audit Tracking
 
-The scrubber automatically generates a CSV audit file that tracks all replacements made during processing. This file helps both customers and support teams understand what was changed and how often.
+The scrubber automatically generates an audit file that tracks all replacements made during processing. This file helps both customers and support teams understand what was changed and how often. The audit file can be generated in CSV or JSON format.
 
-### Audit File Format
+### Audit File Formats
 
-The audit file contains four columns:
+#### CSV Format (Default)
+The CSV audit file contains four columns:
 - **Original Value**: The original text that was replaced
 - **New Value**: What it was replaced with
 - **Times Replaced**: How many times this replacement occurred
 - **Type**: The type of data (email, username, ip, uid)
-
-### Example Audit File
 
 ```csv
 Original Value,New Value,Times Replaced,Type
@@ -120,6 +120,32 @@ claude,user1,582,username
 192.168.1.10,***.***.***.10,3,ip
 alice@company.org,user2@domain2.example.com,856,email
 alice,user2,291,username
+```
+
+#### JSON Format
+The JSON audit file contains an array of audit entries with the same information:
+
+```json
+[
+  {
+    "OriginalValue": "claude@mattermost.com",
+    "NewValue": "user1@domain1.example.com",
+    "TimesReplaced": 1164,
+    "Type": "email"
+  },
+  {
+    "OriginalValue": "claude",
+    "NewValue": "user1",
+    "TimesReplaced": 582,
+    "Type": "username"
+  },
+  {
+    "OriginalValue": "192.168.1.10",
+    "NewValue": "***.***.***.10",
+    "TimesReplaced": 3,
+    "Type": "ip"
+  }
+]
 ```
 
 ### Using the Audit File
@@ -153,8 +179,8 @@ The scrubber supports JSON configuration files for easier management of settings
 **Configuration Options:**
 - **InputFile**: Path to the log file to be scrubbed
 - **OutputFile**: Path where the scrubbed log will be written
-- **AuditFile**: Path where the audit CSV will be written
-- **AuditFileType**: Format for audit output (currently only "csv" is supported)
+- **AuditFile**: Path where the audit file will be written
+- **AuditFileType**: Format for audit output ("csv" or "json")
 - **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
 
 ### Configuration Usage
@@ -202,6 +228,9 @@ Command line arguments override configuration file values:
 
 # Specify custom audit file location
 ./mattermost-scrubber -i mattermost.log -l 2 -a custom_audit.csv
+
+# Generate JSON audit file instead of CSV
+./mattermost-scrubber -i mattermost.log -l 2 --audit-type json
 
 # Process without creating audit file (dry-run)
 ./mattermost-scrubber -i mattermost.log -l 3 --dry-run

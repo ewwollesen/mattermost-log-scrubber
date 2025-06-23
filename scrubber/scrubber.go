@@ -511,3 +511,27 @@ func (s *Scrubber) WriteAuditFile(filePath string) error {
 
 	return nil
 }
+
+// WriteAuditFileJSON writes the audit log to a JSON file
+func (s *Scrubber) WriteAuditFileJSON(filePath string) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create audit file: %w", err)
+	}
+	defer file.Close()
+
+	// Convert audit entries to a slice for JSON serialization
+	auditData := make([]AuditEntry, 0, len(s.auditEntries))
+	for _, entry := range s.auditEntries {
+		auditData = append(auditData, *entry)
+	}
+
+	// Write JSON with proper formatting
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(auditData); err != nil {
+		return fmt.Errorf("failed to write JSON audit file: %w", err)
+	}
+
+	return nil
+}

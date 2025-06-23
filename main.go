@@ -11,7 +11,7 @@ import (
 	"mattermost-log-scrubber/scrubber"
 )
 
-const version = "0.4.0"
+const version = "0.5.0"
 
 type FileSettings struct {
 	InputFile     string `json:"InputFile"`
@@ -55,6 +55,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -c, --config string   Config file path (default: scrubber_config.json)\n")
 	fmt.Fprintf(os.Stderr, "  -o, --output string   Output file path (default: <input>_scrubbed.<ext>)\n")
 	fmt.Fprintf(os.Stderr, "  -a, --audit string    Audit file path for tracking mappings (default: <input>_audit.csv)\n")
+	fmt.Fprintf(os.Stderr, "  --audit-type string   Audit file format: csv or json (default: csv)\n")
 	fmt.Fprintf(os.Stderr, "  --dry-run             Preview changes without writing output\n")
 	fmt.Fprintf(os.Stderr, "  -v, --verbose         Verbose output\n")
 	fmt.Fprintf(os.Stderr, "  -V, --version         Show version and exit\n")
@@ -65,6 +66,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 3 --dry-run --verbose\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s --config scrubber_config.json\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s -c my_config.json --verbose\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 2 --audit-type json\n", os.Args[0])
 }
 
 func main() {
@@ -81,6 +83,7 @@ func main() {
 	var verboseLong = flag.Bool("verbose", false, "Verbose output")
 	var auditFile = flag.String("a", "", "Audit file path for tracking mappings (optional)")
 	var auditFileLong = flag.String("audit", "", "Audit file path for tracking mappings (optional)")
+	var auditType = flag.String("audit-type", "", "Audit file format: csv or json (default: csv)")
 	var showVersion = flag.Bool("V", false, "Show version and exit")
 	var showVersionLong = flag.Bool("version", false, "Show version and exit")
 	var showHelp = flag.Bool("h", false, "Show help message")
@@ -168,6 +171,14 @@ func main() {
 		auditPath = config.FileSettings.AuditFile
 	}
 
+	auditFileType := *auditType
+	if auditFileType == "" && config != nil {
+		auditFileType = config.FileSettings.AuditFileType
+	}
+	if auditFileType == "" {
+		auditFileType = "csv"
+	}
+
 	// Validate required flags
 	if inputPath == "" {
 		fmt.Fprintf(os.Stderr, "Error: Input file path is required\n\n")
@@ -198,7 +209,11 @@ func main() {
 	if auditPath == "" {
 		ext := filepath.Ext(inputPath)
 		base := strings.TrimSuffix(inputPath, ext)
-		auditPath = base + "_audit.csv"
+		if auditFileType == "json" {
+			auditPath = base + "_audit.json"
+		} else {
+			auditPath = base + "_audit.csv"
+		}
 	}
 
 	// Always show basic info
@@ -220,7 +235,11 @@ func main() {
 
 	// Write audit file if not dry run
 	if !*dryRun {
-		err = s.WriteAuditFile(auditPath)
+		if auditFileType == "json" {
+			err = s.WriteAuditFileJSON(auditPath)
+		} else {
+			err = s.WriteAuditFile(auditPath)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing audit file: %v\n", err)
 			os.Exit(1)
