@@ -110,9 +110,13 @@ func runScrubbing(settings config.ResolvedSettings) error {
 	s := scrubber.NewScrubber(settings.ScrubLevel, settings.Verbose)
 
 	// Process the file
-	if err := s.ProcessFile(settings.InputPath, settings.OutputPath, settings.DryRun, settings.CompressOutputFile); err != nil {
+	actualOutputPath, err := s.ProcessFile(settings.InputPath, settings.OutputPath, settings.DryRun, settings.CompressOutputFile, settings.OverwriteAction)
+	if err != nil {
 		return fmt.Errorf("processing file: %w", err)
 	}
+
+	// Update settings with actual output path used
+	settings.OutputPath = actualOutputPath
 
 	// Write output
 	return writeOutput(s, settings)
@@ -120,14 +124,19 @@ func runScrubbing(settings config.ResolvedSettings) error {
 
 // writeOutput handles audit file writing and success messages
 func writeOutput(s *scrubber.Scrubber, settings config.ResolvedSettings) error {
+	var actualAuditPath string
+	
 	// Write audit file if not dry run
 	if !settings.DryRun {
+		var err error
 		if settings.AuditFileType == constants.AuditTypeJSON {
-			if err := s.WriteAuditFileJSON(settings.AuditPath); err != nil {
+			actualAuditPath, err = s.WriteAuditFileJSON(settings.AuditPath, settings.OverwriteAction)
+			if err != nil {
 				return fmt.Errorf("writing JSON audit file: %w", err)
 			}
 		} else {
-			if err := s.WriteAuditFile(settings.AuditPath); err != nil {
+			actualAuditPath, err = s.WriteAuditFile(settings.AuditPath, settings.OverwriteAction)
+			if err != nil {
 				return fmt.Errorf("writing CSV audit file: %w", err)
 			}
 		}
@@ -138,7 +147,7 @@ func writeOutput(s *scrubber.Scrubber, settings config.ResolvedSettings) error {
 		fmt.Println("Dry run completed successfully. No files were modified.")
 	} else {
 		fmt.Printf("Log scrubbing completed successfully. Output written to: %s\n", settings.OutputPath)
-		fmt.Printf("Audit log written to: %s\n", settings.AuditPath)
+		fmt.Printf("Audit log written to: %s\n", actualAuditPath)
 	}
 
 	return nil

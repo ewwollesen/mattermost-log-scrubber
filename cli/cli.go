@@ -28,6 +28,7 @@ func ParseFlags() config.CLIFlags {
 	flag.StringVar(&flags.AuditFile, "a", "", "Audit file path for tracking mappings (optional)")
 	flag.StringVar(&flags.AuditLong, "audit", "", "Audit file path for tracking mappings (optional)")
 	flag.StringVar(&flags.AuditType, "audit-type", "", "Audit file format: csv or json (default: csv)")
+	flag.StringVar(&flags.OverwriteAction, "overwrite", "", "Action when files exist: prompt, overwrite, timestamp, cancel (default: prompt)")
 	flag.BoolVar(&flags.Compress, "z", false, "Compress output file with gzip")
 	flag.BoolVar(&flags.CompressLong, "compress", false, "Compress output file with gzip")
 
@@ -74,6 +75,7 @@ func PrintUsage() {
 	fmt.Fprintf(os.Stderr, "  -o, --output string   Output file path (default: <input>%s.<ext>)\n", constants.ScrubSuffix)
 	fmt.Fprintf(os.Stderr, "  -a, --audit string    Audit file path for tracking mappings (default: <input>%s.csv)\n", constants.AuditSuffix)
 	fmt.Fprintf(os.Stderr, "  --audit-type string   Audit file format: %s or %s (default: %s)\n", constants.AuditTypeCSV, constants.AuditTypeJSON, constants.AuditTypeCSV)
+	fmt.Fprintf(os.Stderr, "  --overwrite string    Action when files exist: %s, %s, %s, %s (default: %s)\n", constants.OverwritePrompt, constants.OverwriteOverwrite, constants.OverwriteTimestamp, constants.OverwriteCancel, constants.OverwritePrompt)
 	fmt.Fprintf(os.Stderr, "  -z, --compress        Compress output file with gzip\n")
 	fmt.Fprintf(os.Stderr, "  --dry-run             Preview changes without writing output\n")
 	fmt.Fprintf(os.Stderr, "  -v, --verbose         Verbose output\n")
@@ -87,6 +89,7 @@ func PrintUsage() {
 	fmt.Fprintf(os.Stderr, "  %s -c my_config.json --verbose\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 2 --audit-type %s\n", os.Args[0], constants.AuditTypeJSON)
 	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 1 --compress\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -i mattermost.log -l 1 --overwrite %s\n", os.Args[0], constants.OverwriteTimestamp)
 }
 
 // GetConfigPath determines the configuration file path from CLI flags

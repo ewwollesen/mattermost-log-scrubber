@@ -15,6 +15,7 @@ type FileSettings struct {
 	AuditFile          string `json:"AuditFile"`
 	AuditFileType      string `json:"AuditFileType"`
 	CompressOutputFile bool   `json:"CompressOutputFile"`
+	OverwriteAction    string `json:"OverwriteAction"`
 }
 
 // ScrubSettings contains scrubbing-related configuration
@@ -61,26 +62,28 @@ type ResolvedSettings struct {
 	Verbose            bool
 	DryRun             bool
 	CompressOutputFile bool
+	OverwriteAction    string
 }
 
 // CLIFlags represents command line flag values
 type CLIFlags struct {
-	InputFile     string
-	Input         string
-	OutputFile    string
-	Output        string
-	Level         int
-	LevelLong     int
-	ConfigFile    string
-	ConfigLong    string
-	AuditFile     string
-	AuditLong     string
-	AuditType     string
-	Verbose       bool
-	VerboseLong   bool
-	DryRun        bool
-	Compress      bool
-	CompressLong  bool
+	InputFile       string
+	Input           string
+	OutputFile      string
+	Output          string
+	Level           int
+	LevelLong       int
+	ConfigFile      string
+	ConfigLong      string
+	AuditFile       string
+	AuditLong       string
+	AuditType       string
+	OverwriteAction string
+	Verbose         bool
+	VerboseLong     bool
+	DryRun          bool
+	Compress        bool
+	CompressLong    bool
 }
 
 // ResolveSettings resolves final configuration values from CLI flags and config file
@@ -148,6 +151,15 @@ func ResolveSettings(flags CLIFlags, config *Config) ResolvedSettings {
 		settings.CompressOutputFile = config.FileSettings.CompressOutputFile
 	}
 
+	// Resolve overwrite action
+	settings.OverwriteAction = flags.OverwriteAction
+	if settings.OverwriteAction == "" && config != nil {
+		settings.OverwriteAction = config.FileSettings.OverwriteAction
+	}
+	if settings.OverwriteAction == "" {
+		settings.OverwriteAction = constants.OverwritePrompt
+	}
+
 	return settings
 }
 
@@ -160,6 +172,25 @@ func ValidateSettings(settings ResolvedSettings) error {
 	if settings.ScrubLevel < constants.ScrubLevelLow || settings.ScrubLevel > constants.ScrubLevelHigh {
 		return fmt.Errorf("scrubbing level must be %d, %d, or %d", 
 			constants.ScrubLevelLow, constants.ScrubLevelMedium, constants.ScrubLevelHigh)
+	}
+
+	// Validate overwrite action
+	validActions := []string{
+		constants.OverwritePrompt,
+		constants.OverwriteOverwrite,
+		constants.OverwriteTimestamp,
+		constants.OverwriteCancel,
+	}
+	validAction := false
+	for _, action := range validActions {
+		if settings.OverwriteAction == action {
+			validAction = true
+			break
+		}
+	}
+	if !validAction {
+		return fmt.Errorf("overwrite action must be one of: %s, %s, %s, %s",
+			constants.OverwritePrompt, constants.OverwriteOverwrite, constants.OverwriteTimestamp, constants.OverwriteCancel)
 	}
 
 	// Check if input file exists

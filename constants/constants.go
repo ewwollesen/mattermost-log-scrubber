@@ -2,7 +2,7 @@ package constants
 
 // Application constants
 const (
-	Version     = "0.7.0"
+	Version     = "0.8.0"
 	AppName     = "mattermost-log-scrubber"
 	Description = "A Golang application that scrubs identifying information from Mattermost log files."
 )
@@ -53,4 +53,12 @@ const (
 	TypeUsername = "username"
 	TypeIP       = "ip"
 	TypeUID      = "uid"
+)
+
+// Overwrite action constants
+const (
+	OverwritePrompt    = "prompt"    // Prompt user for each conflict
+	OverwriteOverwrite = "overwrite" // Automatically overwrite existing files
+	OverwriteTimestamp = "timestamp" // Automatically add timestamp suffix
+	OverwriteCancel    = "cancel"    // Cancel operation on any conflict
 )

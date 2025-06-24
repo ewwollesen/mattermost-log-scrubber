@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -71,10 +72,11 @@ func NewScrubber(level int, verbose bool) *Scrubber {
 }
 
 // ProcessFile processes the input file and writes scrubbed output
-func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compress bool) error {
+// Returns the actual output path used (which may differ from inputPath if renamed)
+func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compress bool, overwriteAction string) (string, error) {
 	inputFile, err := os.Open(inputPath)
 	if err != nil {
-		return fmt.Errorf("failed to open input file: %w", err)
+		return "", fmt.Errorf("failed to open input file: %w", err)
 	}
 	defer inputFile.Close()
 
@@ -82,10 +84,31 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 	var outputFile *os.File
 	var gzipWriter *gzip.Writer
 	
+	// Track the final output path (may change if renamed)
+	finalOutputPath := outputPath
+	
 	if !dryRun {
-		outputFile, err = os.Create(outputPath)
+		// Check if output file already exists
+		if checkFileExists(outputPath) {
+			choice, err := handleFileConflict(outputPath, overwriteAction)
+			if err != nil {
+				return "", fmt.Errorf("failed to handle file conflict: %w", err)
+			}
+			
+			switch choice {
+			case "cancel":
+				return "", createCancelError(outputPath, overwriteAction)
+			case "rename":
+				finalOutputPath = generateTimestampSuffix(outputPath)
+				fmt.Printf("Output will be written to: %s\n", finalOutputPath)
+			case "overwrite":
+				// Continue with original path
+			}
+		}
+		
+		outputFile, err = os.Create(finalOutputPath)
 		if err != nil {
-			return fmt.Errorf("failed to create output file: %w", err)
+			return "", fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer outputFile.Close()
 		
@@ -135,7 +158,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 
 		if !dryRun {
 			if _, err := outputWriter.Write([]byte(scrubbedLine + "\n")); err != nil {
-				return fmt.Errorf("failed to write to output file: %w", err)
+				return "", fmt.Errorf("failed to write to output file: %w", err)
 			}
 		} else if s.verbose {
 			fmt.Printf("Line %d would be scrubbed\n", lineCount)
@@ -157,7 +180,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading input file: %w", err)
+		return "", fmt.Errorf("error reading input file: %w", err)
 	}
 
 	// Always show processed lines count with breakdown
@@ -216,7 +239,11 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 		}
 	}
 
-	return nil
+	// Return the actual path used (for dry run, return original path)
+	if dryRun {
+		return outputPath, nil
+	}
+	return finalOutputPath, nil
 }
 
 // processLogLine processes a single log line and returns the scrubbed version
@@ -558,10 +585,29 @@ func (s *Scrubber) trackReplacement(original, newValue, valueType string) {
 }
 
 // WriteAuditFile writes the audit log to a CSV file
-func (s *Scrubber) WriteAuditFile(filePath string) error {
-	file, err := os.Create(filePath)
+func (s *Scrubber) WriteAuditFile(filePath string, overwriteAction string) (string, error) {
+	// Check if audit file already exists
+	finalAuditPath := filePath
+	if checkFileExists(filePath) {
+		choice, err := handleFileConflict(filePath, overwriteAction)
+		if err != nil {
+			return "", fmt.Errorf("failed to handle file conflict: %w", err)
+		}
+		
+		switch choice {
+		case "cancel":
+			return "", createCancelError(filePath, overwriteAction)
+		case "rename":
+			finalAuditPath = generateTimestampSuffix(filePath)
+			fmt.Printf("Audit file will be written to: %s\n", finalAuditPath)
+		case "overwrite":
+			// Continue with original path
+		}
+	}
+	
+	file, err := os.Create(finalAuditPath)
 	if err != nil {
-		return fmt.Errorf("failed to create audit file: %w", err)
+		return "", fmt.Errorf("failed to create audit file: %w", err)
 	}
 	defer file.Close()
 
@@ -570,7 +616,7 @@ func (s *Scrubber) WriteAuditFile(filePath string) error {
 
 	// Write header
 	if err := writer.Write([]string{"Original Value", "New Value", "Times Replaced", "Type"}); err != nil {
-		return fmt.Errorf("failed to write CSV header: %w", err)
+		return "", fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
 	// Write audit entries
@@ -582,11 +628,11 @@ func (s *Scrubber) WriteAuditFile(filePath string) error {
 			entry.Type,
 		}
 		if err := writer.Write(record); err != nil {
-			return fmt.Errorf("failed to write CSV record: %w", err)
+			return "", fmt.Errorf("failed to write CSV record: %w", err)
 		}
 	}
 
-	return nil
+	return finalAuditPath, nil
 }
 
 // trackJSONFailure records a JSON parsing failure for reporting
@@ -611,11 +657,105 @@ func (s *Scrubber) trackJSONFailure(lineNumber int, line string, err error) {
 	// Warnings will be shown at the end during statistics
 }
 
-// WriteAuditFileJSON writes the audit log to a JSON file
-func (s *Scrubber) WriteAuditFileJSON(filePath string) error {
-	file, err := os.Create(filePath)
+// checkFileExists returns true if the file exists
+func checkFileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return err == nil
+}
+
+// createCancelError creates an appropriate error message based on the overwrite action
+func createCancelError(filePath string, overwriteAction string) error {
+	switch overwriteAction {
+	case constants.OverwriteCancel:
+		return fmt.Errorf("file '%s' already exists and OverwriteAction is set to 'cancel'", filePath)
+	default:
+		return fmt.Errorf("operation cancelled by user")
+	}
+}
+
+// handleFileConflict determines how to handle an existing file based on the overwrite action
+// Returns: "overwrite", "cancel", or "rename"
+func handleFileConflict(filePath string, overwriteAction string) (string, error) {
+	switch overwriteAction {
+	case constants.OverwriteOverwrite:
+		return "overwrite", nil
+	case constants.OverwriteTimestamp:
+		return "rename", nil
+	case constants.OverwriteCancel:
+		return "cancel", nil
+	case constants.OverwritePrompt:
+		return promptUserChoice(filePath)
+	default:
+		// Fallback to prompting if invalid action
+		return promptUserChoice(filePath)
+	}
+}
+
+// promptUserChoice prompts the user to choose how to handle an existing file
+// Returns: "overwrite", "cancel", or "rename"
+func promptUserChoice(filePath string) (string, error) {
+	fmt.Printf("File '%s' already exists.\n", filePath)
+	fmt.Print("Choose an option: (o)verwrite, (c)ancel, or (r)ename with timestamp? ")
+	
+	var choice string
+	_, err := fmt.Scanln(&choice)
 	if err != nil {
-		return fmt.Errorf("failed to create audit file: %w", err)
+		return "", fmt.Errorf("failed to read user input: %w", err)
+	}
+	
+	choice = strings.ToLower(strings.TrimSpace(choice))
+	switch choice {
+	case "o", "overwrite":
+		return "overwrite", nil
+	case "c", "cancel":
+		return "cancel", nil
+	case "r", "rename":
+		return "rename", nil
+	default:
+		fmt.Println("Invalid choice. Please enter 'o', 'c', or 'r'.")
+		return promptUserChoice(filePath) // Recursive call for invalid input
+	}
+}
+
+// generateTimestampSuffix creates a timestamp suffix for filenames
+func generateTimestampSuffix(originalPath string) string {
+	timestamp := time.Now().Format("20060102_150405")
+	
+	// Split the path into directory, name, and extension
+	dir := filepath.Dir(originalPath)
+	base := filepath.Base(originalPath)
+	ext := filepath.Ext(base)
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+	
+	newName := fmt.Sprintf("%s_%s%s", nameWithoutExt, timestamp, ext)
+	return filepath.Join(dir, newName)
+}
+
+// WriteAuditFileJSON writes the audit log to a JSON file
+// Returns the actual file path used (which may differ if renamed)
+func (s *Scrubber) WriteAuditFileJSON(filePath string, overwriteAction string) (string, error) {
+	// Check if audit file already exists
+	finalAuditPath := filePath
+	if checkFileExists(filePath) {
+		choice, err := handleFileConflict(filePath, overwriteAction)
+		if err != nil {
+			return "", fmt.Errorf("failed to handle file conflict: %w", err)
+		}
+		
+		switch choice {
+		case "cancel":
+			return "", createCancelError(filePath, overwriteAction)
+		case "rename":
+			finalAuditPath = generateTimestampSuffix(filePath)
+			fmt.Printf("Audit file will be written to: %s\n", finalAuditPath)
+		case "overwrite":
+			// Continue with original path
+		}
+	}
+	
+	file, err := os.Create(finalAuditPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create audit file: %w", err)
 	}
 	defer file.Close()
 
@@ -629,8 +769,8 @@ func (s *Scrubber) WriteAuditFileJSON(filePath string) error {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(auditData); err != nil {
-		return fmt.Errorf("failed to write JSON audit file: %w", err)
+		return "", fmt.Errorf("failed to write JSON audit file: %w", err)
 	}
 
-	return nil
+	return finalAuditPath, nil
 }
