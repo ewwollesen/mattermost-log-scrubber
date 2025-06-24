@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"mattermost-log-scrubber/constants"
 )
@@ -28,11 +31,17 @@ type OutputSettings struct {
 	Verbose bool `json:"Verbose"`
 }
 
+// ProcessingSettings contains processing-related configuration
+type ProcessingSettings struct {
+	MaxInputFileSize string `json:"MaxInputFileSize"`
+}
+
 // Config represents the complete configuration structure
 type Config struct {
-	FileSettings   FileSettings   `json:"FileSettings"`
-	ScrubSettings  ScrubSettings  `json:"ScrubSettings"`
-	OutputSettings OutputSettings `json:"OutputSettings"`
+	FileSettings        FileSettings        `json:"FileSettings"`
+	ScrubSettings       ScrubSettings       `json:"ScrubSettings"`
+	OutputSettings      OutputSettings      `json:"OutputSettings"`
+	ProcessingSettings  ProcessingSettings  `json:"ProcessingSettings"`
 }
 
 // LoadConfig loads configuration from a JSON file
@@ -52,6 +61,65 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
+// parseFileSize parses human-readable file sizes (e.g., "150MB", "1GB", "500KB")
+func parseFileSize(sizeStr string) (int64, error) {
+	if sizeStr == "" {
+		return constants.DefaultMaxFileSize, nil
+	}
+	
+	// Regex to match number and optional unit
+	re := regexp.MustCompile(`^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)?$`)
+	matches := re.FindStringSubmatch(strings.ToUpper(strings.TrimSpace(sizeStr)))
+	
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("invalid file size format: %s (expected format like '150MB', '1GB', etc.)", sizeStr)
+	}
+	
+	// Parse the numeric part
+	size, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid numeric value in file size: %s", matches[1])
+	}
+	
+	// Convert based on unit (default to bytes if no unit)
+	unit := matches[2]
+	if unit == "" {
+		unit = "B"
+	}
+	
+	var multiplier int64
+	switch unit {
+	case "B":
+		multiplier = 1
+	case "KB":
+		multiplier = 1024
+	case "MB":
+		multiplier = 1024 * 1024
+	case "GB":
+		multiplier = 1024 * 1024 * 1024
+	case "TB":
+		multiplier = 1024 * 1024 * 1024 * 1024
+	default:
+		return 0, fmt.Errorf("unsupported file size unit: %s (supported: B, KB, MB, GB, TB)", unit)
+	}
+	
+	return int64(size * float64(multiplier)), nil
+}
+
+// formatFileSize formats a file size in bytes to human-readable format
+func formatFileSize(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
 // ResolvedSettings contains all resolved configuration values
 type ResolvedSettings struct {
 	InputPath          string
@@ -63,6 +131,7 @@ type ResolvedSettings struct {
 	DryRun             bool
 	CompressOutputFile bool
 	OverwriteAction    string
+	MaxInputFileSize   int64
 }
 
 // CLIFlags represents command line flag values
@@ -79,6 +148,7 @@ type CLIFlags struct {
 	AuditLong       string
 	AuditType       string
 	OverwriteAction string
+	MaxFileSize     string
 	Verbose         bool
 	VerboseLong     bool
 	DryRun          bool
@@ -160,6 +230,19 @@ func ResolveSettings(flags CLIFlags, config *Config) ResolvedSettings {
 		settings.OverwriteAction = constants.OverwritePrompt
 	}
 
+	// Resolve max input file size
+	maxFileSizeStr := flags.MaxFileSize
+	if maxFileSizeStr == "" && config != nil {
+		maxFileSizeStr = config.ProcessingSettings.MaxInputFileSize
+	}
+	
+	var err error
+	settings.MaxInputFileSize, err = parseFileSize(maxFileSizeStr)
+	if err != nil {
+		// If there's an error parsing, use the default
+		settings.MaxInputFileSize = constants.DefaultMaxFileSize
+	}
+
 	return settings
 }
 
@@ -193,9 +276,22 @@ func ValidateSettings(settings ResolvedSettings) error {
 			constants.OverwritePrompt, constants.OverwriteOverwrite, constants.OverwriteTimestamp, constants.OverwriteCancel)
 	}
 
-	// Check if input file exists
-	if _, err := os.Stat(settings.InputPath); os.IsNotExist(err) {
+	// Check if input file exists and get its size
+	fileInfo, err := os.Stat(settings.InputPath)
+	if os.IsNotExist(err) {
 		return fmt.Errorf("input file '%s' does not exist", settings.InputPath)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get file info for '%s': %w", settings.InputPath, err)
+	}
+
+	// Check file size against limit
+	fileSize := fileInfo.Size()
+	if fileSize > settings.MaxInputFileSize {
+		return fmt.Errorf("input file '%s' size (%s) exceeds maximum allowed size (%s). Use --max-file-size or config setting to override",
+			settings.InputPath,
+			formatFileSize(fileSize),
+			formatFileSize(settings.MaxInputFileSize))
 	}
 
 	return nil

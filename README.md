@@ -16,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.7.0
+**Current Version**: 0.9.0
 
 ## Installation
 
@@ -50,10 +50,94 @@ go build -o mattermost-scrubber
 - `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
 - `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv` or `<input>_audit.json`)
 - `--audit-type`: Audit file format: csv or json (default: csv)
+- `--overwrite`: Action when files exist: prompt, overwrite, timestamp, cancel (default: prompt)
+- `--max-file-size`: Maximum input file size: 150MB, 1GB, etc. (default: 150MB)
 - `-z, --compress`: Compress output file with gzip
 - `--dry-run`: Preview changes without writing output
 - `-v, --verbose`: Enable verbose output
 - `--version`: Show version and exit
+
+## File Overwrite Protection
+
+The scrubber provides configurable protection against accidentally overwriting existing files:
+
+### Overwrite Modes
+
+- **`prompt`** (default): Ask user for each file conflict - (o)verwrite, (c)ancel, or (r)ename with timestamp
+- **`overwrite`**: Automatically overwrite existing files without prompting
+- **`timestamp`**: Automatically rename files with timestamp suffix (e.g., `output_20250623_142301.log`)
+- **`cancel`**: Cancel operation immediately if any target file already exists
+
+### Usage Examples
+
+```bash
+# Interactive prompting (default behavior)
+./mattermost-scrubber -i mattermost.log -l 1
+
+# Automatically add timestamps to avoid conflicts
+./mattermost-scrubber -i mattermost.log -l 1 --overwrite timestamp
+
+# Automatically overwrite existing files
+./mattermost-scrubber -i mattermost.log -l 1 --overwrite overwrite
+
+# Cancel if any files exist (useful for automated scripts)
+./mattermost-scrubber -i mattermost.log -l 1 --overwrite cancel
+```
+
+## File Size Limits
+
+**Default Limit**: 150MB (covers 99.6% of Mattermost log files based on real-world data)
+
+### Why File Size Limits Exist
+
+Processing very large log files can consume significant memory because the scrubber tracks:
+- All unique user mappings discovered in the file
+- All replacement operations for the audit trail
+- JSON parsing failure samples for error reporting
+
+### Memory Usage Guidelines
+
+| File Size | Expected Memory | Recommendation |
+|-----------|----------------|----------------|
+| 50MB | ~50MB | ✅ Safe for all systems |
+| 150MB | ~150MB | ✅ Default limit, works well |
+| 500MB | ~500MB | ⚠️ Requires adequate system memory |
+| 1GB+ | ~1GB+ | ⚠️ Monitor system resources |
+
+### Overriding File Size Limits
+
+**CLI Override:**
+```bash
+# Process a 500MB file
+./mattermost-scrubber -i large.log -l 1 --max-file-size 500MB
+
+# Process a 2GB file (ensure adequate system memory!)
+./mattermost-scrubber -i huge.log -l 1 --max-file-size 2GB
+```
+
+**Config File:**
+```json
+{
+  "ProcessingSettings": {
+    "MaxInputFileSize": "500MB"
+  }
+}
+```
+
+### Resource Recommendations
+
+**Before increasing file size limits:**
+- Ensure your system has adequate RAM (2-3x the file size)
+- Consider processing large files on dedicated systems
+- Monitor memory usage during processing
+- For files >1GB, consider splitting them first
+
+**Error Handling:**
+If you hit the file size limit, you'll see a clear error message:
+```
+Error: input file 'huge.log' size (200.0 MB) exceeds maximum allowed size (150.0 MB). 
+Use --max-file-size or config setting to override
+```
 
 ## Scrubbing Levels
 
@@ -169,25 +253,40 @@ The scrubber supports JSON configuration files for easier management of settings
     "InputFile": "/opt/mattermost/logs/mattermost.log",
     "OutputFile": "/var/tmp/scrubbed_mattermost.log",
     "AuditFile": "/var/tmp/mattermost_scrubbed_audit.csv",
-    "AuditFileType": "csv"
+    "AuditFileType": "csv",
+    "CompressOutputFile": false,
+    "OverwriteAction": "prompt"
   },
   "ScrubSettings": {
     "ScrubLevel": 1
   },
   "OutputSettings": {
     "Verbose": false
+  },
+  "ProcessingSettings": {
+    "MaxInputFileSize": "150MB"
   }
 }
 ```
 
 **Configuration Options:**
+
+**FileSettings:**
 - **InputFile**: Path to the log file to be scrubbed
 - **OutputFile**: Path where the scrubbed log will be written
 - **AuditFile**: Path where the audit file will be written
 - **AuditFileType**: Format for audit output ("csv" or "json")
 - **CompressOutputFile**: Compress output file with gzip (true/false)
+- **OverwriteAction**: How to handle existing files ("prompt", "overwrite", "timestamp", "cancel")
+
+**ScrubSettings:**
 - **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
+
+**OutputSettings:**
 - **Verbose**: Enable verbose output showing user mappings and processing details
+
+**ProcessingSettings:**
+- **MaxInputFileSize**: Maximum input file size ("150MB", "1GB", etc.)
 
 ### Configuration Usage
 

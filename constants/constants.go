@@ -2,7 +2,7 @@ package constants
 
 // Application constants
 const (
-	Version     = "0.8.0"
+	Version     = "0.9.0"
 	AppName     = "mattermost-log-scrubber"
 	Description = "A Golang application that scrubs identifying information from Mattermost log files."
 )
@@ -61,4 +61,9 @@ const (
 	OverwriteOverwrite = "overwrite" // Automatically overwrite existing files
 	OverwriteTimestamp = "timestamp" // Automatically add timestamp suffix
 	OverwriteCancel    = "cancel"    // Cancel operation on any conflict
+)
+
+// File size constants
+const (
+	DefaultMaxFileSize = 150 * 1024 * 1024 // 150MB default limit
 )

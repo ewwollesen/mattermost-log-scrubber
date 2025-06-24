@@ -12,5 +12,8 @@
   },
   "OutputSettings": {
     "Verbose": false
+  },
+  "ProcessingSettings": {
+    "MaxInputFileSize": "150MB"
   }
 }
