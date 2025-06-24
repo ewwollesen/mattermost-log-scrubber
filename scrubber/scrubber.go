@@ -28,33 +28,45 @@ type AuditEntry struct {
 	Type            string // "email", "username", "ip", "uid"
 }
 
+type JSONFailure struct {
+	LineNumber int
+	Error      string
+	SampleContent string // First 100 chars of the problematic line
+}
+
 type Scrubber struct {
-	level        int
-	verbose      bool
-	emailMap     map[string]string
-	userMap      map[string]string
-	ipMap        map[string]string
-	uidMap       map[string]string
-	userMappings map[string]*UserMapping // key: username or email -> UserMapping
-	userCounter  int
-	auditEntries map[string]*AuditEntry // key: original value -> AuditEntry
-	domainMap    map[string]string      // key: original domain -> mapped domain
-	domainCounter int
+	level            int
+	verbose          bool
+	emailMap         map[string]string
+	userMap          map[string]string
+	ipMap            map[string]string
+	uidMap           map[string]string
+	userMappings     map[string]*UserMapping // key: username or email -> UserMapping
+	userCounter      int
+	auditEntries     map[string]*AuditEntry // key: original value -> AuditEntry
+	domainMap        map[string]string      // key: original domain -> mapped domain
+	domainCounter    int
+	jsonSuccessCount int
+	jsonFailureCount int
+	jsonFailures     []JSONFailure // Store sample of failed lines
 }
 
 func NewScrubber(level int, verbose bool) *Scrubber {
 	return &Scrubber{
-		level:         level,
-		verbose:       verbose,
-		emailMap:      make(map[string]string),
-		userMap:       make(map[string]string),
-		ipMap:         make(map[string]string),
-		uidMap:        make(map[string]string),
-		userMappings:  make(map[string]*UserMapping),
-		userCounter:   0,
-		auditEntries:  make(map[string]*AuditEntry),
-		domainMap:     make(map[string]string),
-		domainCounter: 0,
+		level:            level,
+		verbose:          verbose,
+		emailMap:         make(map[string]string),
+		userMap:          make(map[string]string),
+		ipMap:            make(map[string]string),
+		uidMap:           make(map[string]string),
+		userMappings:     make(map[string]*UserMapping),
+		userCounter:      0,
+		auditEntries:     make(map[string]*AuditEntry),
+		domainMap:        make(map[string]string),
+		domainCounter:    0,
+		jsonSuccessCount: 0,
+		jsonFailureCount: 0,
+		jsonFailures:     make([]JSONFailure, 0),
 	}
 }
 
@@ -111,7 +123,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 			continue
 		}
 
-		scrubbedLine, err := s.processLogLine(line)
+		scrubbedLine, err := s.processLogLine(line, lineCount)
 		if err != nil {
 			failedCount++
 			fmt.Printf("\nWarning: Failed to process line %d: %v\n", lineCount, err)
@@ -157,19 +169,69 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 		fmt.Printf(" (%d lines failed processing but were included)", failedCount)
 	}
 	fmt.Println()
+	
+	// Show JSON processing statistics
+	if s.jsonSuccessCount > 0 || s.jsonFailureCount > 0 {
+		totalProcessed := s.jsonSuccessCount + s.jsonFailureCount
+		if totalProcessed > 0 {
+			jsonPercent := float64(s.jsonSuccessCount) / float64(totalProcessed) * 100
+			plainPercent := float64(s.jsonFailureCount) / float64(totalProcessed) * 100
+			fmt.Printf("JSON processed: %d lines (%.1f%%)\n", s.jsonSuccessCount, jsonPercent)
+			fmt.Printf("Plain text processed: %d lines (%.1f%%)\n", s.jsonFailureCount, plainPercent)
+		}
+	}
+	
+	// Show JSON issues summary if any occurred
+	if s.jsonFailureCount > 0 {
+		fmt.Printf("\nJSON Processing Issues:\n")
+		fmt.Printf("  %d lines had JSON parsing issues and were processed as plain text\n", s.jsonFailureCount)
+		
+		// Show line numbers of first few failures
+		if len(s.jsonFailures) > 0 {
+			fmt.Print("  Lines with issues: ")
+			for i, failure := range s.jsonFailures {
+				if i >= 5 { // Show first 5 line numbers
+					fmt.Printf("... and %d more", s.jsonFailureCount-5)
+					break
+				}
+				if i > 0 {
+					fmt.Print(", ")
+				}
+				fmt.Printf("%d", failure.LineNumber)
+			}
+			fmt.Println()
+		}
+		
+		// In verbose mode, show detailed sample of failed lines
+		if s.verbose && len(s.jsonFailures) > 0 {
+			fmt.Println("  Sample failure details:")
+			for i, failure := range s.jsonFailures {
+				if i >= 3 { // Limit to first 3 in verbose output
+					fmt.Printf("    ... and %d more failures\n", len(s.jsonFailures)-3)
+					break
+				}
+				fmt.Printf("    Line %d: %s\n", failure.LineNumber, failure.SampleContent)
+				fmt.Printf("      Error: %s\n", failure.Error)
+			}
+		}
+	}
 
 	return nil
 }
 
 // processLogLine processes a single log line and returns the scrubbed version
-func (s *Scrubber) processLogLine(line string) (string, error) {
+func (s *Scrubber) processLogLine(line string, lineNumber int) (string, error) {
 	// Try to parse as JSON to validate and extract user mapping data
 	var rawData map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &rawData); err != nil {
-		// If not valid JSON, treat as plain text and scrub
+		// Track JSON failure and show warning
+		s.trackJSONFailure(lineNumber, line, err)
 		return s.scrubPlainText(line), nil
 	}
 
+	// Successfully parsed as JSON
+	s.jsonSuccessCount++
+	
 	// If using mapping mode, detect and create user mappings first
 	// Always detect and create user mappings
 	s.detectAndMapUser(rawData)
@@ -525,6 +587,28 @@ func (s *Scrubber) WriteAuditFile(filePath string) error {
 	}
 
 	return nil
+}
+
+// trackJSONFailure records a JSON parsing failure for reporting
+func (s *Scrubber) trackJSONFailure(lineNumber int, line string, err error) {
+	s.jsonFailureCount++
+	
+	// Store sample of failed lines (limit to first 10 to avoid memory issues)
+	if len(s.jsonFailures) < 10 {
+		sampleContent := line
+		if len(sampleContent) > 100 {
+			sampleContent = sampleContent[:100] + "..."
+		}
+		
+		s.jsonFailures = append(s.jsonFailures, JSONFailure{
+			LineNumber:    lineNumber,
+			Error:         err.Error(),
+			SampleContent: sampleContent,
+		})
+	}
+	
+	// Don't show warning immediately to avoid interrupting progress
+	// Warnings will be shown at the end during statistics
 }
 
 // WriteAuditFileJSON writes the audit log to a JSON file
