@@ -6,7 +6,8 @@
       "Bash(grep:*)",
       "Bash(./mattermost-log-scrubber:*)",
       "Bash(gunzip:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

@@ -46,3 +46,6 @@ mattermost-log-scrubber
 # Random files
 ideas.txt
 bugs.txt
+
+# Wiki stuff
+wiki/
