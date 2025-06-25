@@ -192,19 +192,20 @@ The scrubber automatically generates an audit file that tracks all replacements 
 ### Audit File Formats
 
 #### CSV Format (Default)
-The CSV audit file contains four columns:
+The CSV audit file contains five columns:
 - **Original Value**: The original text that was replaced
 - **New Value**: What it was replaced with
 - **Times Replaced**: How many times this replacement occurred
 - **Type**: The type of data (email, username, ip, uid)
+- **Source**: The source filename where the replacement was found
 
 ```csv
-Original Value,New Value,Times Replaced,Type
-claude@mattermost.com,user1@domain1.example.com,1164,email
-claude,user1,582,username
-192.168.1.10,***.***.***.10,3,ip
-alice@company.org,user2@domain2.example.com,856,email
-alice,user2,291,username
+Original Value,New Value,Times Replaced,Type,Source
+claude@mattermost.com,user1@domain1.example.com,1164,email,mattermost.log
+claude,user1,582,username,mattermost.log
+192.168.1.10,***.***.***.10,3,ip,mattermost.log
+alice@company.org,user2@domain2.example.com,856,email,mattermost.log
+alice,user2,291,username,mattermost.log
 ```
 
 #### JSON Format
@@ -216,19 +217,22 @@ The JSON audit file contains an array of audit entries with the same information
     "OriginalValue": "claude@mattermost.com",
     "NewValue": "user1@domain1.example.com",
     "TimesReplaced": 1164,
-    "Type": "email"
+    "Type": "email",
+    "Source": "mattermost.log"
   },
   {
     "OriginalValue": "claude",
     "NewValue": "user1",
     "TimesReplaced": 582,
-    "Type": "username"
+    "Type": "username",
+    "Source": "mattermost.log"
   },
   {
     "OriginalValue": "192.168.1.10",
     "NewValue": "***.***.***.10",
     "TimesReplaced": 3,
-    "Type": "ip"
+    "Type": "ip",
+    "Source": "mattermost.log"
   }
 ]
 ```

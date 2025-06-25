@@ -27,6 +27,7 @@ type AuditEntry struct {
 	NewValue        string
 	TimesReplaced   int
 	Type            string // "email", "username", "ip", "uid"
+	Source          string // source filename
 }
 
 type JSONFailure struct {
@@ -146,7 +147,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 			continue
 		}
 
-		scrubbedLine, err := s.processLogLine(line, lineCount)
+		scrubbedLine, err := s.processLogLine(line, filepath.Base(inputPath), lineCount)
 		if err != nil {
 			failedCount++
 			fmt.Printf("\nWarning: Failed to process line %d: %v\n", lineCount, err)
@@ -247,13 +248,13 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 }
 
 // processLogLine processes a single log line and returns the scrubbed version
-func (s *Scrubber) processLogLine(line string, lineNumber int) (string, error) {
+func (s *Scrubber) processLogLine(line, source string, lineNumber int) (string, error) {
 	// Try to parse as JSON to validate and extract user mapping data
 	var rawData map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &rawData); err != nil {
 		// Track JSON failure and show warning
 		s.trackJSONFailure(lineNumber, line, err)
-		return s.scrubPlainText(line), nil
+		return s.scrubPlainText(line, source), nil
 	}
 
 	// Successfully parsed as JSON
@@ -264,7 +265,7 @@ func (s *Scrubber) processLogLine(line string, lineNumber int) (string, error) {
 	s.detectAndMapUser(rawData)
 
 	// Work directly with the JSON string to preserve field order
-	scrubbedJSON := s.scrubJSONString(line)
+	scrubbedJSON := s.scrubJSONString(line, source)
 	
 	// Validate that the result is still valid JSON
 	var temp interface{}
@@ -277,46 +278,46 @@ func (s *Scrubber) processLogLine(line string, lineNumber int) (string, error) {
 }
 
 // scrubJSONString scrubs sensitive data from a JSON string
-func (s *Scrubber) scrubJSONString(jsonStr string) string {
+func (s *Scrubber) scrubJSONString(jsonStr, source string) string {
 	result := jsonStr
 
 	// Scrub emails (all levels)
-	result = s.scrubEmails(result)
+	result = s.scrubEmails(result, source)
 
 	// Scrub usernames (all levels)
-	result = s.scrubUsernames(result)
+	result = s.scrubUsernames(result, source)
 
 	// Scrub IP addresses (levels 2 and 3 only)
 	if s.level >= 2 {
-		result = s.scrubIPAddresses(result)
+		result = s.scrubIPAddresses(result, source)
 	}
 
 	// Scrub UIDs (level 3 only)
 	if s.level == 3 {
-		result = s.scrubUIDs(result)
+		result = s.scrubUIDs(result, source)
 	}
 
 	return result
 }
 
 // scrubPlainText scrubs sensitive data from plain text
-func (s *Scrubber) scrubPlainText(text string) string {
+func (s *Scrubber) scrubPlainText(text, source string) string {
 	result := text
 
 	// Scrub emails (all levels)
-	result = s.scrubEmails(result)
+	result = s.scrubEmails(result, source)
 
 	// Scrub usernames (all levels)
-	result = s.scrubUsernames(result)
+	result = s.scrubUsernames(result, source)
 
 	// Scrub IP addresses (levels 2 and 3 only)
 	if s.level >= 2 {
-		result = s.scrubIPAddresses(result)
+		result = s.scrubIPAddresses(result, source)
 	}
 
 	// Scrub UIDs (level 3 only)
 	if s.level == 3 {
-		result = s.scrubUIDs(result)
+		result = s.scrubUIDs(result, source)
 	}
 
 	return result
@@ -325,11 +326,11 @@ func (s *Scrubber) scrubPlainText(text string) string {
 // Email regex pattern
 var emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
 
-func (s *Scrubber) scrubEmails(text string) string {
+func (s *Scrubber) scrubEmails(text, source string) string {
 	return emailRegex.ReplaceAllStringFunc(text, func(email string) string {
 		emailLower := strings.ToLower(email)
 		if scrubbed, exists := s.emailMap[emailLower]; exists {
-			s.trackReplacement(email, scrubbed, constants.TypeEmail)
+			s.trackReplacement(email, scrubbed, constants.TypeEmail, source)
 			return scrubbed
 		}
 
@@ -337,7 +338,7 @@ func (s *Scrubber) scrubEmails(text string) string {
 		scrubbed := s.getUserMappedEmail(email)
 		
 		s.emailMap[emailLower] = scrubbed
-		s.trackReplacement(email, scrubbed, constants.TypeEmail)
+		s.trackReplacement(email, scrubbed, constants.TypeEmail, source)
 		return scrubbed
 	})
 }
@@ -345,16 +346,16 @@ func (s *Scrubber) scrubEmails(text string) string {
 // IP address regex pattern
 var ipRegex = regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
 
-func (s *Scrubber) scrubIPAddresses(text string) string {
+func (s *Scrubber) scrubIPAddresses(text, source string) string {
 	return ipRegex.ReplaceAllStringFunc(text, func(ip string) string {
 		if scrubbed, exists := s.ipMap[ip]; exists {
-			s.trackReplacement(ip, scrubbed, constants.TypeIP)
+			s.trackReplacement(ip, scrubbed, constants.TypeIP, source)
 			return scrubbed
 		}
 
 		scrubbed := s.scrubIPByLevel(ip)
 		s.ipMap[ip] = scrubbed
-		s.trackReplacement(ip, scrubbed, constants.TypeIP)
+		s.trackReplacement(ip, scrubbed, constants.TypeIP, source)
 		return scrubbed
 	})
 }
@@ -362,7 +363,7 @@ func (s *Scrubber) scrubIPAddresses(text string) string {
 // Username patterns - look for quoted usernames in JSON and word boundaries in plain text
 var usernameRegex = regexp.MustCompile(`"(?:user|username)"\s*:\s*"([^"]+)"`)
 
-func (s *Scrubber) scrubUsernames(text string) string {
+func (s *Scrubber) scrubUsernames(text, source string) string {
 	// Scrub usernames in JSON format
 	result := usernameRegex.ReplaceAllStringFunc(text, func(match string) string {
 		// Extract just the username value
@@ -376,7 +377,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		
 		usernameLower := strings.ToLower(username)
 		if scrubbed, exists := s.userMap[usernameLower]; exists {
-			s.trackReplacement(username, scrubbed, constants.TypeUsername)
+			s.trackReplacement(username, scrubbed, constants.TypeUsername, source)
 			return key + scrubbed + `"`
 		}
 
@@ -384,7 +385,7 @@ func (s *Scrubber) scrubUsernames(text string) string {
 		scrubbed := s.getUserMappedName(username)
 		
 		s.userMap[usernameLower] = scrubbed
-		s.trackReplacement(username, scrubbed, constants.TypeUsername)
+		s.trackReplacement(username, scrubbed, constants.TypeUsername, source)
 		return key + scrubbed + `"`
 	})
 
@@ -394,20 +395,20 @@ func (s *Scrubber) scrubUsernames(text string) string {
 // UID patterns - look for long alphanumeric strings that look like IDs
 var uidRegex = regexp.MustCompile(`\b[a-z0-9]{` + fmt.Sprintf("%d", constants.MinUIDLength) + `,}\b`)
 
-func (s *Scrubber) scrubUIDs(text string) string {
+func (s *Scrubber) scrubUIDs(text, source string) string {
 	return uidRegex.ReplaceAllStringFunc(text, func(uid string) string {
 		if len(uid) < constants.MinUIDLength {
 			return uid
 		}
 
 		if scrubbed, exists := s.uidMap[uid]; exists {
-			s.trackReplacement(uid, scrubbed, constants.TypeUID)
+			s.trackReplacement(uid, scrubbed, constants.TypeUID, source)
 			return scrubbed
 		}
 
 		scrubbed := s.scrubUIDByLevel(uid)
 		s.uidMap[uid] = scrubbed
-		s.trackReplacement(uid, scrubbed, constants.TypeUID)
+		s.trackReplacement(uid, scrubbed, constants.TypeUID, source)
 		return scrubbed
 	})
 }
@@ -571,7 +572,7 @@ func (s *Scrubber) getMappedDomain(email string) string {
 }
 
 // trackReplacement tracks a replacement for audit purposes
-func (s *Scrubber) trackReplacement(original, newValue, valueType string) {
+func (s *Scrubber) trackReplacement(original, newValue, valueType, source string) {
 	if entry, exists := s.auditEntries[original]; exists {
 		entry.TimesReplaced++
 	} else {
@@ -580,6 +581,7 @@ func (s *Scrubber) trackReplacement(original, newValue, valueType string) {
 			NewValue:      newValue,
 			TimesReplaced: 1,
 			Type:          valueType,
+			Source:        source,
 		}
 	}
 }
@@ -615,7 +617,7 @@ func (s *Scrubber) WriteAuditFile(filePath string, overwriteAction string) (stri
 	defer writer.Flush()
 
 	// Write header
-	if err := writer.Write([]string{"Original Value", "New Value", "Times Replaced", "Type"}); err != nil {
+	if err := writer.Write([]string{"Original Value", "New Value", "Times Replaced", "Type", "Source"}); err != nil {
 		return "", fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
@@ -626,6 +628,7 @@ func (s *Scrubber) WriteAuditFile(filePath string, overwriteAction string) (stri
 			entry.NewValue,
 			fmt.Sprintf("%d", entry.TimesReplaced),
 			entry.Type,
+			entry.Source,
 		}
 		if err := writer.Write(record); err != nil {
 			return "", fmt.Errorf("failed to write CSV record: %w", err)
