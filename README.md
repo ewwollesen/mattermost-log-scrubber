@@ -1,409 +1,271 @@
 # Mattermost Log Scrubber
 
-A Golang application that scrubs identifying information from Mattermost log files with configurable levels of data masking.
+**Safely removes sensitive information from Mattermost log files while preserving their analytical value.**
 
-## Features
+Used for sharing logs with the Mattermost support teams.
 
-- **Three scrubbing levels** with different levels of data masking
-- **User mapping** - replaces usernames/emails with consistent `user1@domain1` format
-- **JSON and JSONL format support** for Mattermost log files
-- **Consistent replacement mapping** - same inputs always produce same outputs
-- **Audit tracking** - CSV file with original values, replacements, and usage counts
-- **Dry-run capability** to preview changes before applying
-- **Verbose mode** for detailed processing information
+## Requirements
 
-## Versioning
+Requires Mattermost version 10+
 
-This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
+## Quick Start
 
-**Current Version**: 0.10.0
+1. **[Download the latest release](https://github.com/anthropics/mattermost-log-scrubber/releases)** for your platform
+2. **Run the scrubber**: `./mattermost-scrubber -i mattermost.log -l 1`
+3. **Share the cleaned file**: `mattermost_scrubbed.log` is now safe to share
+
+That's it! Your log file is scrubbed and ready to go.
+
+## What It Does
+
+**Before (sensitive data exposed):**
+
+```json
+{
+  "user": "alice.smith",
+  "email": "alice.smith@acme.com",
+  "ip": "192.168.1.100",
+  "url": "https://chat.acme.com/api"
+}
+```
+
+**After (scrubbed but still useful):**
+
+```json
+{
+  "user": "user1",
+  "email": "user1@domain1",
+  "ip": "192.168.1.100",
+  "url": "https://domain1/api"
+}
+```
+
+### Key Features
+
+- 🛡️ **Removes sensitive data**: Emails, usernames, URLs, IP addresses (optional), and internal IDs
+- 🔄 **Maintains consistency**: Same original value always maps to the same replacement
+- 📊 **Preserves structure**: JSON format and log structure remain intact for analysis
+- 📋 **Creates audit trail**: Track exactly what was changed for reverse lookup
+- ⚡ **Three security levels**: Choose how much to mask based on your needs
+- 🔒 **Safe by default**: Won't overwrite existing files without permission
 
 ## Installation
 
-### Option 1: Download Pre-built Binary (Recommended)
+### Download Pre-built Binary (Recommended)
 
-Download the latest release for your platform from the [Releases page](https://github.com/anthropics/mattermost-log-scrubber/releases):
+**[→ Download Latest Release](https://github.com/anthropics/mattermost-log-scrubber/releases)**
 
-- **Linux**: `mattermost-log-scrubber_Linux_x86_64.tar.gz` or `mattermost-log-scrubber_Linux_arm64.tar.gz`
-- **macOS**: `mattermost-log-scrubber_Darwin_x86_64.tar.gz` or `mattermost-log-scrubber_Darwin_arm64.tar.gz`  
-- **Windows**: `mattermost-log-scrubber_Windows_x86_64.zip` or `mattermost-log-scrubber_Windows_arm64.zip`
+Choose your platform:
 
-### Option 2: Build from Source
+- **Linux**: `mattermost-log-scrubber_Linux_x86_64.tar.gz`
+- **macOS**: `mattermost-log-scrubber_Darwin_x86_64.tar.gz`
+- **Windows**: `mattermost-log-scrubber_Windows_x86_64.zip`
+
+### Build from Source
 
 ```bash
+git clone https://github.com/anthropics/mattermost-log-scrubber
+cd mattermost-log-scrubber
 go build -o mattermost-scrubber
 ```
 
 ## Usage
 
+### Basic Usage
+
 ```bash
-./mattermost-scrubber -i <input_file> -l <level> [options]
+./mattermost-scrubber -i <log-file> -l <security-level>
 ```
 
-### Required Flags
-
-- `-i, --input`: Input log file path
-- `-l, --level`: Scrubbing level (1, 2, or 3)
-
-### Optional Flags
-
-- `-o, --output`: Output file path (default: `<input>_scrubbed.<ext>`)
-- `-a, --audit`: Audit file path for tracking mappings (default: `<input>_audit.csv` or `<input>_audit.json`)
-- `--audit-type`: Audit file format: csv or json (default: csv)
-- `--overwrite`: Action when files exist: prompt, overwrite, timestamp, cancel (default: prompt)
-- `--max-file-size`: Maximum input file size: 150MB, 1GB, etc. (default: 150MB)
-- `-z, --compress`: Compress output file with gzip
-- `--dry-run`: Preview changes without writing output
-- `-v, --verbose`: Enable verbose output
-- `--version`: Show version and exit
-
-## File Overwrite Protection
-
-The scrubber provides configurable protection against accidentally overwriting existing files:
-
-### Overwrite Modes
-
-- **`prompt`** (default): Ask user for each file conflict - (o)verwrite, (c)ancel, or (r)ename with timestamp
-- **`overwrite`**: Automatically overwrite existing files without prompting
-- **`timestamp`**: Automatically rename files with timestamp suffix (e.g., `output_20250623_142301.log`)
-- **`cancel`**: Cancel operation immediately if any target file already exists
-
-### Usage Examples
+**Examples:**
 
 ```bash
-# Interactive prompting (default behavior)
+# Light scrubbing (usernames/emails only)
 ./mattermost-scrubber -i mattermost.log -l 1
 
-# Automatically add timestamps to avoid conflicts
-./mattermost-scrubber -i mattermost.log -l 1 --overwrite timestamp
+# Medium scrubbing (+ partial IP masking)
+./mattermost-scrubber -i mattermost.log -l 2
 
-# Automatically overwrite existing files
-./mattermost-scrubber -i mattermost.log -l 1 --overwrite overwrite
-
-# Cancel if any files exist (useful for automated scripts)
-./mattermost-scrubber -i mattermost.log -l 1 --overwrite cancel
+# Full scrubbing (+ full IP and ID masking)
+./mattermost-scrubber -i mattermost.log -l 3
 ```
 
-## File Size Limits
+### Common Options
 
-**Default Limit**: 150MB (covers 99.6% of Mattermost log files based on real-world data)
+| Flag            | Description                       | Example             |
+| --------------- | --------------------------------- | ------------------- |
+| `-i, --input`   | Input log file **(required)**     | `-i mattermost.log` |
+| `-l, --level`   | Security level 1-3 **(required)** | `-l 2`              |
+| `-o, --output`  | Custom output file                | `-o clean.log`      |
+| `--dry-run`     | Preview changes only              | `--dry-run`         |
+| `-v, --verbose` | Show detailed info                | `-v`                |
 
-### Why File Size Limits Exist
+**[→ See all options](#all-command-options)**
 
-Processing very large log files can consume significant memory because the scrubber tracks:
-- All unique user mappings discovered in the file
-- All replacement operations for the audit trail
-- JSON parsing failure samples for error reporting
+## Security Levels
 
-### Memory Usage Guidelines
+Choose the right level of protection for your use case:
 
-| File Size | Expected Memory | Recommendation |
-|-----------|----------------|----------------|
-| 50MB | ~50MB | ✅ Safe for all systems |
-| 150MB | ~150MB | ✅ Default limit, works well |
-| 500MB | ~500MB | ⚠️ Requires adequate system memory |
-| 1GB+ | ~1GB+ | ⚠️ Monitor system resources |
+### Level 1 - Basic (Share with internal teams)
 
-### Overriding File Size Limits
+**What's masked:** Usernames, emails, URLs  
+**What's kept:** IP addresses, internal IDs, timestamps, error messages
 
-**CLI Override:**
-```bash
-# Process a 500MB file
-./mattermost-scrubber -i large.log -l 1 --max-file-size 500MB
-
-# Process a 2GB file (ensure adequate system memory!)
-./mattermost-scrubber -i huge.log -l 1 --max-file-size 2GB
+```
+alice@company.com → user1@domain1
+https://chat.company.com → https://domain1
+IP: 192.168.1.100 → 192.168.1.100 (unchanged)
 ```
 
-**Config File:**
-```json
-{
-  "ProcessingSettings": {
-    "MaxInputFileSize": "500MB"
-  }
-}
+### Level 2 - Moderate (Share with vendors)
+
+**What's masked:** Everything from Level 1 + partial IP addresses  
+**What's kept:** Last IP octet, internal IDs, timestamps, error messages
+
+```
+alice@company.com → user1@domain1
+https://chat.company.com → https://subdomain1.domain1
+IP: 192.168.1.100 → ***.***.***.100
 ```
 
-### Resource Recommendations
+### Level 3 - Maximum (Public sharing/compliance)
 
-**Before increasing file size limits:**
-- Ensure your system has adequate RAM (2-3x the file size)
-- Consider processing large files on dedicated systems
-- Monitor memory usage during processing
-- For files >1GB, consider splitting them first
+**What's masked:** Everything from Level 2 + full IPs and internal IDs  
+**What's kept:** Timestamps, error messages, log structure
 
-**Error Handling:**
-If you hit the file size limit, you'll see a clear error message:
 ```
-Error: input file 'huge.log' size (200.0 MB) exceeds maximum allowed size (150.0 MB). 
-Use --max-file-size or config setting to override
+alice@company.com → user1@domain1
+https://chat.company.com → https://subdomain1.domain1
+IP: 192.168.1.100 → ***.***.***.**
+ID: abc123...xyz789 → ******************xyz789
 ```
 
-## Scrubbing Levels
+## Understanding the Output
 
-### Level 1 (Low) - User Mapping Only
-- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
-- **Usernames**: `claude` → `user1` (user mapping)
-- **FQDNs**: `https://www.mattermost.com/api` → `https://www.domain1/api` (preserve subdomain structure)
-- **IP Addresses**: `192.168.1.154` → `192.168.1.154` (no masking)
-- **UIDs/Channel IDs/Team IDs**: Keep intact
+After scrubbing, you'll get two files:
 
-### Level 2 (Medium) - Partial IP Masking
-- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
-- **Usernames**: `claude` → `user1` (user mapping)
-- **FQDNs**: `https://www.mattermost.com/api` → `https://subdomain1.domain1/api` (unique subdomain mapping)
-- **IP Addresses**: `192.168.1.154` → `***.***.***.154` (keep last octet)
-- **UIDs/Channel IDs/Team IDs**: Keep intact
+### 1. Scrubbed Log File
 
-### Level 3 (High) - Full Masking
-- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
-- **Usernames**: `claude` → `user1` (user mapping)
-- **FQDNs**: `https://www.mattermost.com/api` → `https://subdomain1.domain1/api` (unique subdomain mapping)
-- **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
-- **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `******************12345678` (mask all but last 8, maintain 26 char length)
+- **Default name**: `<original>_scrubbed.log`
+- **Safe to share** - all sensitive data removed
+- **Same format** as original for easy analysis
+- **Consistent mapping** - same inputs always produce same outputs
 
-## User Mapping
+### 2. Audit File
 
-The scrubber automatically creates consistent user mappings for usernames and emails:
+- **Default name**: `<original>_audit.csv`
+- **Maps scrubbed values back to originals** (keep this private!)
+- **Shows replacement statistics**
+- **Enables reverse lookup** for troubleshooting
 
-### How It Works
-- **User Detection**: When username + email appear on the same log line, they're linked as the same user
-- **Sequential Naming**: First user becomes `user1`/`user1@domain1`, second becomes `user2`/`user2@domain2`, etc.
-- **Domain Mapping**: Each original domain gets mapped to a numbered domain (`domain1`, `domain2`, etc.)
-- **Consistency**: Same original username/email always maps to the same userN across the entire file
-- **Level-based IP/UID Masking**: IP addresses and UIDs are masked according to the selected level (1-3)
-
-### Example
-**Input:**
-```json
-{"user":"claude","email":"claude@mattermost.com","ip":"192.168.1.10"}
-{"user":"alice","email":"alice@company.org","ip":"10.0.0.5"}  
-{"user":"claude","email":"claude@mattermost.com","ip":"172.16.0.1"}
-```
-
-**Output (Level 1):**
-```json
-{"user":"user1","email":"user1@domain1","ip":"192.168.1.10"}
-{"user":"user2","email":"user2@domain2","ip":"10.0.0.5"}
-{"user":"user1","email":"user1@domain1","ip":"172.16.0.1"}
-```
-
-## FQDN Mapping
-
-FQDNs follow the same domain consistency as emails but with level-specific subdomain handling:
-
-### FQDN Mapping Examples
-**Input URLs:**
-- `https://mattermost.com/api`
-- `https://notices.mattermost.com/alerts`
-- `https://dev-mattermost.mattermost.com/webhook`
-
-**Level 1 Output (preserve subdomain structure):**
-- `https://domain1/api`
-- `https://notices.domain1/alerts`
-- `https://dev-mattermost.domain1/webhook`
-
-**Level 2-3 Output (unique subdomain mapping):**
-- `https://domain1/api` (no subdomain)
-- `https://subdomain1.domain1/alerts` (first subdomain for domain1)
-- `https://subdomain2.domain1/webhook` (second subdomain for domain1)
-
-## Audit Tracking
-
-The scrubber automatically generates an audit file that tracks all replacements made during processing. This file helps both customers and support teams understand what was changed and how often. The audit file can be generated in CSV or JSON format.
-
-### Audit File Formats
-
-#### CSV Format (Default)
-The CSV audit file contains five columns:
-- **Original Value**: The original text that was replaced
-- **New Value**: What it was replaced with
-- **Times Replaced**: How many times this replacement occurred
-- **Type**: The type of data (email, username, fqdn, ip, uid)
-- **Source**: The source filename where the replacement was found
+**Audit file example:**
 
 ```csv
 Original Value,New Value,Times Replaced,Type,Source
-claude@mattermost.com,user1@domain1,1164,email,mattermost.log
-claude,user1,582,username,mattermost.log
-https://mattermost.com/api,https://domain1/api,45,fqdn,mattermost.log
-192.168.1.10,***.***.***.10,3,ip,mattermost.log
-alice@company.org,user2@domain2,856,email,mattermost.log
-alice,user2,291,username,mattermost.log
+alice@company.com,user1@domain1,245,email,mattermost.log
+alice,user1,128,username,mattermost.log
+https://chat.company.com,https://domain1,12,fqdn,mattermost.log
 ```
 
-#### JSON Format
-The JSON audit file contains an array of audit entries with the same information:
+## Important Notes
 
-```json
-[
-  {
-    "OriginalValue": "claude@mattermost.com",
-    "NewValue": "user1@domain1",
-    "TimesReplaced": 1164,
-    "Type": "email",
-    "Source": "mattermost.log"
-  },
-  {
-    "OriginalValue": "claude",
-    "NewValue": "user1",
-    "TimesReplaced": 582,
-    "Type": "username",
-    "Source": "mattermost.log"
-  },
-  {
-    "OriginalValue": "https://mattermost.com/api",
-    "NewValue": "https://domain1/api",
-    "TimesReplaced": 45,
-    "Type": "fqdn",
-    "Source": "mattermost.log"
-  },
-  {
-    "OriginalValue": "192.168.1.10",
-    "NewValue": "***.***.***.10",
-    "TimesReplaced": 3,
-    "Type": "ip",
-    "Source": "mattermost.log"
-  }
-]
-```
+- ⚠️ **Keep audit files private** - they contain the original sensitive data
+- ✅ **Share scrubbed files freely** - they're safe for external use
+- 🔄 **Consistent results** - running the tool multiple times on the same file produces identical output
+- 📁 **File protection** - Tool won't overwrite existing files without confirmation
 
-### Using the Audit File
+## Advanced Usage
 
-This audit file enables:
-- **Customer troubleshooting**: "The issue is with user34, which maps to your original user 'alice'"
-- **Support analysis**: "User1 appears 1164 times in logs, indicating high activity"
-- **Data verification**: Confirm all sensitive data was properly replaced
-- **Reverse lookup**: Map scrubbed identifiers back to original context when needed
+<details>
+<summary><strong>Configuration Files</strong></summary>
 
-## Configuration File
-
-The scrubber supports JSON configuration files for easier management of settings. An example configuration file is provided:
-
-### Example Configuration
+Create a `scrubber_config.json` file for repeated use:
 
 ```json
 {
   "FileSettings": {
-    "InputFile": "/opt/mattermost/logs/mattermost.log",
-    "OutputFile": "/var/tmp/scrubbed_mattermost.log",
-    "AuditFile": "/var/tmp/mattermost_scrubbed_audit.csv",
-    "AuditFileType": "csv",
-    "CompressOutputFile": false,
-    "OverwriteAction": "prompt"
-  },
-  "ScrubSettings": {
-    "ScrubLevel": 1
-  },
-  "OutputSettings": {
-    "Verbose": false
-  },
-  "ProcessingSettings": {
-    "MaxInputFileSize": "150MB"
+    "InputFile": "/path/to/mattermost.log",
+    "ScrubLevel": 2,
+    "OverwriteAction": "timestamp"
   }
 }
 ```
 
-**Configuration Options:**
+Run with: `./mattermost-scrubber --config scrubber_config.json`
 
-**FileSettings:**
-- **InputFile**: Path to the log file to be scrubbed
-- **OutputFile**: Path where the scrubbed log will be written
-- **AuditFile**: Path where the audit file will be written
-- **AuditFileType**: Format for audit output ("csv" or "json")
-- **CompressOutputFile**: Compress output file with gzip (true/false)
-- **OverwriteAction**: How to handle existing files ("prompt", "overwrite", "timestamp", "cancel")
+</details>
 
-**ScrubSettings:**
-- **ScrubLevel**: Scrubbing intensity level (1, 2, or 3)
+<details>
+<summary><strong>File Size Limits</strong></summary>
 
-**OutputSettings:**
-- **Verbose**: Enable verbose output showing user mappings and processing details
+**Default limit:** 150MB (covers 99.6% of Mattermost logs)
 
-**ProcessingSettings:**
-- **MaxInputFileSize**: Maximum input file size ("150MB", "1GB", etc.)
-
-### Configuration Usage
-
-1. **Copy the example**: `cp example_scrubber_config.json scrubber_config.json`
-2. **Edit the paths** and settings to match your environment
-3. **Run with config**: `./mattermost-scrubber --config scrubber_config.json`
-
-### Configuration Precedence
-
-Command line arguments override configuration file values:
-- **Highest Priority**: Command line flags (`-i`, `-l`, `-o`, etc.)
-- **Medium Priority**: Configuration file values
-- **Lowest Priority**: Default values
-
-## Examples
+For larger files:
 
 ```bash
-# Check version
-./mattermost-scrubber --version
-
-# Basic usage with level 1 scrubbing
-./mattermost-scrubber -i mattermost.log -l 1
-
-# Using configuration file (loads scrubber_config.json by default)
-./mattermost-scrubber
-
-# Using custom configuration file
-./mattermost-scrubber --config my_config.json
-
-# Config file with command line overrides
-./mattermost-scrubber --config scrubber_config.json --level 3 --verbose
-
-# Specify custom output file with level 2 scrubbing
-./mattermost-scrubber -i mattermost.log -o clean.log -l 2
-
-# Preview changes with dry-run and verbose output
-./mattermost-scrubber -i mattermost.log -l 3 --dry-run -v
-
-# Process with maximum scrubbing level
-./mattermost-scrubber -i mattermost.log -l 3 -o fully_scrubbed.log
-
-# Process with verbose output to see user mappings
-./mattermost-scrubber -i mattermost.log -l 1 -v
-
-# Specify custom audit file location
-./mattermost-scrubber -i mattermost.log -l 2 -a custom_audit.csv
-
-# Generate JSON audit file instead of CSV
-./mattermost-scrubber -i mattermost.log -l 2 --audit-type json
-
-# Compress output file with gzip
-./mattermost-scrubber -i mattermost.log -l 1 --compress
-
-# Process without creating audit file (dry-run)
-./mattermost-scrubber -i mattermost.log -l 3 --dry-run
+./mattermost-scrubber -i large.log -l 1 --max-file-size 500MB
 ```
 
-## Sample Input
+**Memory usage:** Plan for ~1GB RAM per 1GB log file
 
-```json
-{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"claude","user_id":"abcdef123456789012345678901234","email":"claude@example.com","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
+</details>
+
+<details>
+<summary><strong>Batch Processing</strong></summary>
+
+```bash
+# Process multiple files
+for file in *.log; do
+  ./mattermost-scrubber -i "$file" -l 2 --overwrite timestamp
+done
 ```
 
-## Sample Output (Level 1)
+</details>
 
-```json
-{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain1","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
-```
+## All Command Options
 
-## Supported Data Types
+### Required
 
-The scrubber automatically detects and masks:
-- Email addresses (RFC 5322 compliant)
-- FQDNs in URLs (http:// and https:// protocols)
-- IPv4 addresses
-- Usernames in JSON fields (`user`, `username`, `name`)
-- Long hexadecimal UIDs (20+ characters) - Level 3 only
+- `-i, --input` - Input log file path
+- `-l, --level` - Scrubbing level (1, 2, or 3)
 
-## Notes
+### Output Control
 
-- The application maintains referential consistency - the same input value will always produce the same masked output
-- **User mapping** preserves user relationships while providing better data utility for analysis
-- Invalid JSON lines are treated as plain text and processed accordingly
-- The application preserves the original log structure and formatting
-- All scrubbing is deterministic and repeatable
+- `-o, --output` - Output file path (default: `<input>_scrubbed.<ext>`)
+- `-a, --audit` - Audit file path (default: `<input>_audit.csv`)
+- `--audit-type` - Audit format: `csv` or `json` (default: csv)
+- `-z, --compress` - Compress output with gzip
+
+### File Handling
+
+- `--overwrite` - When files exist: `prompt`|`overwrite`|`timestamp`|`cancel` (default: prompt)
+- `--max-file-size` - Max input size: `150MB`, `1GB`, etc. (default: 150MB)
+
+### Processing
+
+- `--dry-run` - Preview changes without writing files
+- `-v, --verbose` - Show detailed processing information
+- `--config` - Use configuration file
+- `--version` - Show version and exit
+
+## What Data Gets Scrubbed
+
+| Data Type          | Level 1   | Level 2    | Level 3   | Example                                        |
+| ------------------ | --------- | ---------- | --------- | ---------------------------------------------- |
+| **Emails**         | ✅ Masked | ✅ Masked  | ✅ Masked | `alice@company.com` → `user1@domain1`          |
+| **Usernames**      | ✅ Masked | ✅ Masked  | ✅ Masked | `alice.smith` → `user1`                        |
+| **URLs**           | ✅ Masked | ✅ Masked  | ✅ Masked | `https://chat.company.com` → `https://domain1` |
+| **IP Addresses**   | ❌ Kept   | ⚠️ Partial | ✅ Masked | `192.168.1.100` → `***.***.***.***`            |
+| **Internal IDs**   | ❌ Kept   | ❌ Kept    | ✅ Masked | `abc123...xyz` → `******...xyz`                |
+| **Timestamps**     | ❌ Kept   | ❌ Kept    | ❌ Kept   | Always preserved                               |
+| **Error Messages** | ❌ Kept   | ❌ Kept    | ❌ Kept   | Always preserved                               |
+
+## Support & Contributing
+
+- **Issues & Questions**: [GitHub Issues](https://github.com/anthropics/mattermost-log-scrubber/issues)
+- **Current Version**: v0.10.0
+- **License**: MIT License
+
+---
+
+**Need help?** Check the [troubleshooting section](https://github.com/anthropics/mattermost-log-scrubber/issues) or create an issue.
