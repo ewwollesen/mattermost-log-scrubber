@@ -52,13 +52,17 @@ func setupApplication(flags config.CLIFlags) (config.ResolvedSettings, error) {
 		if err != nil {
 			return config.ResolvedSettings{}, fmt.Errorf("loading config file '%s': %w", configPath, err)
 		}
-		fmt.Printf("Config file found, using config file at %s\n", configPath)
 	} else if userSpecifiedConfig {
 		return config.ResolvedSettings{}, fmt.Errorf("specified config file '%s' does not exist", configPath)
 	}
 
 	// Resolve settings from CLI and config
 	settings := config.ResolveSettings(flags, configFile)
+	
+	// Only show config file message if config values are actually being used
+	if configFile != nil && isConfigFileUsed(flags) {
+		fmt.Printf("Using config file at %s\n", configPath)
+	}
 
 	// Validate settings
 	if err := config.ValidateSettings(settings); err != nil {
@@ -66,6 +70,15 @@ func setupApplication(flags config.CLIFlags) (config.ResolvedSettings, error) {
 	}
 
 	return settings, nil
+}
+
+// isConfigFileUsed checks if essential CLI flags are missing and config file would provide them
+func isConfigFileUsed(flags config.CLIFlags) bool {
+	// Only show message if required flags are missing (input file or scrub level)
+	inputProvided := flags.InputFile != "" || flags.Input != ""
+	levelProvided := flags.Level != 0 || flags.LevelLong != 0
+	
+	return !inputProvided || !levelProvided
 }
 
 // resolveFilePaths sets default file paths if not specified

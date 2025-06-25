@@ -157,7 +157,7 @@ type CLIFlags struct {
 }
 
 // ResolveSettings resolves final configuration values from CLI flags and config file
-// CLI flags take precedence over config file values
+// CLI flags take precedence over config file values when both are provided
 func ResolveSettings(flags CLIFlags, config *Config) ResolvedSettings {
 	settings := ResolvedSettings{}
 
@@ -230,7 +230,7 @@ func ResolveSettings(flags CLIFlags, config *Config) ResolvedSettings {
 		settings.OverwriteAction = constants.OverwritePrompt
 	}
 
-	// Resolve max input file size
+	// Resolve max input file size - CLI flags take precedence over config file
 	maxFileSizeStr := flags.MaxFileSize
 	if maxFileSizeStr == "" && config != nil {
 		maxFileSizeStr = config.ProcessingSettings.MaxInputFileSize
