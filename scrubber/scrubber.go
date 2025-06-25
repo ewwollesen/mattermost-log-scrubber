@@ -43,11 +43,14 @@ type Scrubber struct {
 	userMap          map[string]string
 	ipMap            map[string]string
 	uidMap           map[string]string
+	fqdnMap          map[string]string
 	userMappings     map[string]*UserMapping // key: username or email -> UserMapping
 	userCounter      int
 	auditEntries     map[string]*AuditEntry // key: original value -> AuditEntry
 	domainMap        map[string]string      // key: original domain -> mapped domain
 	domainCounter    int
+	subdomainMap     map[string]string      // key: full subdomain.domain -> mapped subdomain
+	subdomainCounter map[string]int         // key: base domain -> subdomain counter for that domain
 	jsonSuccessCount int
 	jsonFailureCount int
 	jsonFailures     []JSONFailure // Store sample of failed lines
@@ -61,11 +64,14 @@ func NewScrubber(level int, verbose bool) *Scrubber {
 		userMap:          make(map[string]string),
 		ipMap:            make(map[string]string),
 		uidMap:           make(map[string]string),
+		fqdnMap:          make(map[string]string),
 		userMappings:     make(map[string]*UserMapping),
 		userCounter:      0,
 		auditEntries:     make(map[string]*AuditEntry),
 		domainMap:        make(map[string]string),
 		domainCounter:    0,
+		subdomainMap:     make(map[string]string),
+		subdomainCounter: make(map[string]int),
 		jsonSuccessCount: 0,
 		jsonFailureCount: 0,
 		jsonFailures:     make([]JSONFailure, 0),
@@ -287,6 +293,9 @@ func (s *Scrubber) scrubJSONString(jsonStr, source string) string {
 	// Scrub usernames (all levels)
 	result = s.scrubUsernames(result, source)
 
+	// Scrub FQDNs (all levels)
+	result = s.scrubFQDNs(result, source)
+
 	// Scrub IP addresses (levels 2 and 3 only)
 	if s.level >= 2 {
 		result = s.scrubIPAddresses(result, source)
@@ -309,6 +318,9 @@ func (s *Scrubber) scrubPlainText(text, source string) string {
 
 	// Scrub usernames (all levels)
 	result = s.scrubUsernames(result, source)
+
+	// Scrub FQDNs (all levels)
+	result = s.scrubFQDNs(result, source)
 
 	// Scrub IP addresses (levels 2 and 3 only)
 	if s.level >= 2 {
@@ -410,6 +422,94 @@ func (s *Scrubber) scrubUIDs(text, source string) string {
 		s.uidMap[uid] = scrubbed
 		s.trackReplacement(uid, scrubbed, constants.TypeUID, source)
 		return scrubbed
+	})
+}
+
+// FQDN patterns - look for http:// and https:// URLs
+var fqdnRegex = regexp.MustCompile(`https?://([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(/[^\s"',}\]]*)?`)
+
+func (s *Scrubber) scrubFQDNs(text, source string) string {
+	return fqdnRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// Extract protocol, domain, and path
+		parts := fqdnRegex.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+		
+		protocol := strings.Split(match, "://")[0] + "://"
+		domain := parts[1]
+		path := ""
+		if len(parts) > 2 {
+			path = parts[2]
+		}
+		
+		// Check if we already processed this FQDN
+		if scrubbed, exists := s.fqdnMap[match]; exists {
+			s.trackReplacement(match, scrubbed, constants.TypeFQDN, source)
+			return scrubbed
+		}
+		
+		// Extract the base domain (remove subdomains for matching)
+		domainParts := strings.Split(domain, ".")
+		var baseDomain string
+		if len(domainParts) >= 2 {
+			baseDomain = strings.Join(domainParts[len(domainParts)-2:], ".")
+		} else {
+			baseDomain = domain
+		}
+		
+		// Check if this domain matches any of our email domains
+		var mappedDomain string
+		if mapped, exists := s.domainMap[baseDomain]; exists {
+			// Found matching email domain
+			mappedDomain = mapped
+		} else {
+			// Not found in email domains, create new mapping
+			s.domainCounter++
+			mappedDomain = fmt.Sprintf("domain%d", s.domainCounter)
+			s.domainMap[baseDomain] = mappedDomain
+		}
+		
+		// Build scrubbed FQDN based on level
+		var scrubbedDomain string
+		if s.level == 1 {
+			// Level 1: Keep subdomain structure but map the base domain
+			if len(domainParts) > 2 {
+				// Has subdomains - preserve them but map base domain
+				subdomain := strings.Join(domainParts[:len(domainParts)-2], ".")
+				scrubbedDomain = subdomain + "." + mappedDomain
+			} else {
+				// No subdomains
+				scrubbedDomain = mappedDomain
+			}
+		} else {
+			// Levels 2 and 3: Replace with unique subdomainN.domainN format
+			if len(domainParts) > 2 {
+				// Has subdomains - create unique mapping for this full subdomain+domain combination
+				fullSubdomain := domain
+				if mappedSubdomain, exists := s.subdomainMap[fullSubdomain]; exists {
+					// Already mapped this subdomain
+					scrubbedDomain = mappedSubdomain
+				} else {
+					// Create new subdomain mapping for this base domain
+					if _, exists := s.subdomainCounter[mappedDomain]; !exists {
+						s.subdomainCounter[mappedDomain] = 0
+					}
+					s.subdomainCounter[mappedDomain]++
+					mappedSubdomain = fmt.Sprintf("subdomain%d.%s", s.subdomainCounter[mappedDomain], mappedDomain)
+					s.subdomainMap[fullSubdomain] = mappedSubdomain
+					scrubbedDomain = mappedSubdomain
+				}
+			} else {
+				// No subdomains
+				scrubbedDomain = mappedDomain
+			}
+		}
+		
+		scrubbedFQDN := protocol + scrubbedDomain + path
+		s.fqdnMap[match] = scrubbedFQDN
+		s.trackReplacement(match, scrubbedFQDN, constants.TypeFQDN, source)
+		return scrubbedFQDN
 	})
 }
 
@@ -549,7 +649,7 @@ func (s *Scrubber) getMappedDomain(email string) string {
 	// Extract domain from email
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		return constants.DefaultDomain // fallback for invalid emails
+		return "domain1" // fallback for invalid emails
 	}
 	
 	originalDomain := strings.ToLower(parts[1])
@@ -561,7 +661,7 @@ func (s *Scrubber) getMappedDomain(email string) string {
 	
 	// Create new domain mapping
 	s.domainCounter++
-	mappedDomain := fmt.Sprintf("domain%d.%s", s.domainCounter, constants.DefaultDomain)
+	mappedDomain := fmt.Sprintf("domain%d", s.domainCounter)
 	s.domainMap[originalDomain] = mappedDomain
 	
 	if s.verbose {

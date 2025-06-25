@@ -2,7 +2,7 @@ package constants
 
 // Application constants
 const (
-	Version     = "0.9.0"
+	Version     = "0.10.0"
 	AppName     = "mattermost-log-scrubber"
 	Description = "A Golang application that scrubs identifying information from Mattermost log files."
 )
@@ -34,10 +34,7 @@ const (
 	ScrubLevelHigh   = 3
 )
 
-// Domain constants
-const (
-	DefaultDomain = "example.com"
-)
+// Domain constants - removed DefaultDomain for simplified domain1, domain2 format
 
 // Processing constants
 const (
@@ -53,6 +50,7 @@ const (
 	TypeUsername = "username"
 	TypeIP       = "ip"
 	TypeUID      = "uid"
+	TypeFQDN     = "fqdn"
 )
 
 // Overwrite action constants

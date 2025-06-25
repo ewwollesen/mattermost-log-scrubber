@@ -5,7 +5,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 ## Features
 
 - **Three scrubbing levels** with different levels of data masking
-- **User mapping** - replaces usernames/emails with consistent `user1@domain1.example.com` format
+- **User mapping** - replaces usernames/emails with consistent `user1@domain1` format
 - **JSON and JSONL format support** for Mattermost log files
 - **Consistent replacement mapping** - same inputs always produce same outputs
 - **Audit tracking** - CSV file with original values, replacements, and usage counts
@@ -16,7 +16,7 @@ A Golang application that scrubs identifying information from Mattermost log fil
 
 This project follows [Semantic Versioning](https://semver.org/). Releases are automated via GitHub Actions and include cross-platform binaries for Linux, macOS, and Windows.
 
-**Current Version**: 0.9.0
+**Current Version**: 0.10.0
 
 ## Installation
 
@@ -142,20 +142,23 @@ Use --max-file-size or config setting to override
 ## Scrubbing Levels
 
 ### Level 1 (Low) - User Mapping Only
-- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
+- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
+- **FQDNs**: `https://www.mattermost.com/api` → `https://www.domain1/api` (preserve subdomain structure)
 - **IP Addresses**: `192.168.1.154` → `192.168.1.154` (no masking)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 2 (Medium) - Partial IP Masking
-- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
+- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
+- **FQDNs**: `https://www.mattermost.com/api` → `https://subdomain1.domain1/api` (unique subdomain mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.154` (keep last octet)
 - **UIDs/Channel IDs/Team IDs**: Keep intact
 
 ### Level 3 (High) - Full Masking
-- **Emails**: `claude@example.org` → `user1@domain1.example.com` (user mapping with domain tracking)
+- **Emails**: `claude@example.org` → `user1@domain1` (user mapping with domain tracking)
 - **Usernames**: `claude` → `user1` (user mapping)
+- **FQDNs**: `https://www.mattermost.com/api` → `https://subdomain1.domain1/api` (unique subdomain mapping)
 - **IP Addresses**: `192.168.1.154` → `***.***.***.***` (mask entire IP)
 - **UIDs/Channel IDs/Team IDs**: `abcdef123456789012345678901234` → `******************12345678` (mask all but last 8, maintain 26 char length)
 
@@ -165,8 +168,8 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 ### How It Works
 - **User Detection**: When username + email appear on the same log line, they're linked as the same user
-- **Sequential Naming**: First user becomes `user1`/`user1@domain1.example.com`, second becomes `user2`/`user2@domain1.example.com`, etc.
-- **Domain Mapping**: Each original domain gets mapped to a numbered subdomain (`domain1.example.com`, `domain2.example.com`, etc.)
+- **Sequential Naming**: First user becomes `user1`/`user1@domain1`, second becomes `user2`/`user2@domain2`, etc.
+- **Domain Mapping**: Each original domain gets mapped to a numbered domain (`domain1`, `domain2`, etc.)
 - **Consistency**: Same original username/email always maps to the same userN across the entire file
 - **Level-based IP/UID Masking**: IP addresses and UIDs are masked according to the selected level (1-3)
 
@@ -180,10 +183,30 @@ The scrubber automatically creates consistent user mappings for usernames and em
 
 **Output (Level 1):**
 ```json
-{"user":"user1","email":"user1@domain1.example.com","ip":"192.168.1.10"}
-{"user":"user2","email":"user2@domain2.example.com","ip":"10.0.0.5"}
-{"user":"user1","email":"user1@domain1.example.com","ip":"172.16.0.1"}
+{"user":"user1","email":"user1@domain1","ip":"192.168.1.10"}
+{"user":"user2","email":"user2@domain2","ip":"10.0.0.5"}
+{"user":"user1","email":"user1@domain1","ip":"172.16.0.1"}
 ```
+
+## FQDN Mapping
+
+FQDNs follow the same domain consistency as emails but with level-specific subdomain handling:
+
+### FQDN Mapping Examples
+**Input URLs:**
+- `https://mattermost.com/api`
+- `https://notices.mattermost.com/alerts`
+- `https://dev-mattermost.mattermost.com/webhook`
+
+**Level 1 Output (preserve subdomain structure):**
+- `https://domain1/api`
+- `https://notices.domain1/alerts`
+- `https://dev-mattermost.domain1/webhook`
+
+**Level 2-3 Output (unique subdomain mapping):**
+- `https://domain1/api` (no subdomain)
+- `https://subdomain1.domain1/alerts` (first subdomain for domain1)
+- `https://subdomain2.domain1/webhook` (second subdomain for domain1)
 
 ## Audit Tracking
 
@@ -196,15 +219,16 @@ The CSV audit file contains five columns:
 - **Original Value**: The original text that was replaced
 - **New Value**: What it was replaced with
 - **Times Replaced**: How many times this replacement occurred
-- **Type**: The type of data (email, username, ip, uid)
+- **Type**: The type of data (email, username, fqdn, ip, uid)
 - **Source**: The source filename where the replacement was found
 
 ```csv
 Original Value,New Value,Times Replaced,Type,Source
-claude@mattermost.com,user1@domain1.example.com,1164,email,mattermost.log
+claude@mattermost.com,user1@domain1,1164,email,mattermost.log
 claude,user1,582,username,mattermost.log
+https://mattermost.com/api,https://domain1/api,45,fqdn,mattermost.log
 192.168.1.10,***.***.***.10,3,ip,mattermost.log
-alice@company.org,user2@domain2.example.com,856,email,mattermost.log
+alice@company.org,user2@domain2,856,email,mattermost.log
 alice,user2,291,username,mattermost.log
 ```
 
@@ -215,7 +239,7 @@ The JSON audit file contains an array of audit entries with the same information
 [
   {
     "OriginalValue": "claude@mattermost.com",
-    "NewValue": "user1@domain1.example.com",
+    "NewValue": "user1@domain1",
     "TimesReplaced": 1164,
     "Type": "email",
     "Source": "mattermost.log"
@@ -225,6 +249,13 @@ The JSON audit file contains an array of audit entries with the same information
     "NewValue": "user1",
     "TimesReplaced": 582,
     "Type": "username",
+    "Source": "mattermost.log"
+  },
+  {
+    "OriginalValue": "https://mattermost.com/api",
+    "NewValue": "https://domain1/api",
+    "TimesReplaced": 45,
+    "Type": "fqdn",
     "Source": "mattermost.log"
   },
   {
@@ -357,13 +388,14 @@ Command line arguments override configuration file values:
 ## Sample Output (Level 1)
 
 ```json
-{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain1.example.com","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
+{"level":"info","msg":"User login successful","time":"2024-01-15T10:30:45.123Z","user":"user1","user_id":"abcdef123456789012345678901234","email":"user1@domain1","ip":"192.168.1.154","team":"engineering","team_id":"zyxwvu987654321098765432109876"}
 ```
 
 ## Supported Data Types
 
 The scrubber automatically detects and masks:
 - Email addresses (RFC 5322 compliant)
+- FQDNs in URLs (http:// and https:// protocols)
 - IPv4 addresses
 - Usernames in JSON fields (`user`, `username`, `name`)
 - Long hexadecimal UIDs (20+ characters) - Level 3 only
