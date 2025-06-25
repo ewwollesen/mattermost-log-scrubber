@@ -54,6 +54,7 @@ type Scrubber struct {
 	jsonSuccessCount int
 	jsonFailureCount int
 	jsonFailures     []JSONFailure // Store sample of failed lines
+	userOverwriteChoice string     // Remembers user's choice for file conflicts across the session
 }
 
 func NewScrubber(level int, verbose bool) *Scrubber {
@@ -75,6 +76,7 @@ func NewScrubber(level int, verbose bool) *Scrubber {
 		jsonSuccessCount: 0,
 		jsonFailureCount: 0,
 		jsonFailures:     make([]JSONFailure, 0),
+		userOverwriteChoice: "",
 	}
 }
 
@@ -97,7 +99,7 @@ func (s *Scrubber) ProcessFile(inputPath, outputPath string, dryRun bool, compre
 	if !dryRun {
 		// Check if output file already exists
 		if checkFileExists(outputPath) {
-			choice, err := handleFileConflict(outputPath, overwriteAction)
+			choice, err := s.handleFileConflict(outputPath, overwriteAction)
 			if err != nil {
 				return "", fmt.Errorf("failed to handle file conflict: %w", err)
 			}
@@ -691,7 +693,7 @@ func (s *Scrubber) WriteAuditFile(filePath string, overwriteAction string) (stri
 	// Check if audit file already exists
 	finalAuditPath := filePath
 	if checkFileExists(filePath) {
-		choice, err := handleFileConflict(filePath, overwriteAction)
+		choice, err := s.handleFileConflict(filePath, overwriteAction)
 		if err != nil {
 			return "", fmt.Errorf("failed to handle file conflict: %w", err)
 		}
@@ -778,7 +780,8 @@ func createCancelError(filePath string, overwriteAction string) error {
 
 // handleFileConflict determines how to handle an existing file based on the overwrite action
 // Returns: "overwrite", "cancel", or "rename"
-func handleFileConflict(filePath string, overwriteAction string) (string, error) {
+// Uses remembered user choice if available to avoid repeated prompts
+func (s *Scrubber) handleFileConflict(filePath string, overwriteAction string) (string, error) {
 	switch overwriteAction {
 	case constants.OverwriteOverwrite:
 		return "overwrite", nil
@@ -787,16 +790,34 @@ func handleFileConflict(filePath string, overwriteAction string) (string, error)
 	case constants.OverwriteCancel:
 		return "cancel", nil
 	case constants.OverwritePrompt:
-		return promptUserChoice(filePath)
+		// Use remembered choice if available, otherwise prompt
+		if s.userOverwriteChoice != "" {
+			return s.userOverwriteChoice, nil
+		}
+		choice, err := s.promptUserChoice(filePath)
+		if err == nil && choice != "cancel" {
+			// Remember the choice for subsequent files
+			s.userOverwriteChoice = choice
+			fmt.Printf("This choice will be applied to all subsequent file conflicts in this session.\n")
+		}
+		return choice, err
 	default:
 		// Fallback to prompting if invalid action
-		return promptUserChoice(filePath)
+		if s.userOverwriteChoice != "" {
+			return s.userOverwriteChoice, nil
+		}
+		choice, err := s.promptUserChoice(filePath)
+		if err == nil && choice != "cancel" {
+			s.userOverwriteChoice = choice
+			fmt.Printf("This choice will be applied to all subsequent file conflicts in this session.\n")
+		}
+		return choice, err
 	}
 }
 
 // promptUserChoice prompts the user to choose how to handle an existing file
 // Returns: "overwrite", "cancel", or "rename"
-func promptUserChoice(filePath string) (string, error) {
+func (s *Scrubber) promptUserChoice(filePath string) (string, error) {
 	fmt.Printf("File '%s' already exists.\n", filePath)
 	fmt.Print("Choose an option: (o)verwrite, (c)ancel, or (r)ename with timestamp? ")
 	
@@ -816,7 +837,7 @@ func promptUserChoice(filePath string) (string, error) {
 		return "rename", nil
 	default:
 		fmt.Println("Invalid choice. Please enter 'o', 'c', or 'r'.")
-		return promptUserChoice(filePath) // Recursive call for invalid input
+		return s.promptUserChoice(filePath) // Recursive call for invalid input
 	}
 }
 
@@ -840,7 +861,7 @@ func (s *Scrubber) WriteAuditFileJSON(filePath string, overwriteAction string) (
 	// Check if audit file already exists
 	finalAuditPath := filePath
 	if checkFileExists(filePath) {
-		choice, err := handleFileConflict(filePath, overwriteAction)
+		choice, err := s.handleFileConflict(filePath, overwriteAction)
 		if err != nil {
 			return "", fmt.Errorf("failed to handle file conflict: %w", err)
 		}
